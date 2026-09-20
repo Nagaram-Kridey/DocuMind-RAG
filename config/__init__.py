@@ -1,0 +1,1 @@
+"""DocuMind Django project configuration."""
