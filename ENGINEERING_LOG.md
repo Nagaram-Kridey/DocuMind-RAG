@@ -259,3 +259,69 @@ database IDs and chunk ordinal changes.
 ## Next Step
 
 Proceed only to the authorised Phase 1 models, migrations, and HNSW index task.
+
+---
+
+# Session 005
+
+Phase: Phase 1 — Baseline
+Task: Persistence models, migrations, and HNSW index
+Status: Complete
+
+## Objective
+
+Persist the locked Document, Chunk, IngestionJob, and QueryLog data contracts in
+PostgreSQL, with pgvector and Postgres full-text indexes ready for later work.
+
+## Why this task exists
+
+The parser and chunker produce in-memory values. The ingestion and retrieval
+tasks require a durable, indexed representation that preserves their provenance
+and supports dense and keyword search.
+
+## Concepts
+
+The `vector` PostgreSQL extension must exist before Django can create a
+`VectorField(384)`. HNSW uses cosine operators with `m=16` and
+`ef_construction=64`; Postgres full-text search uses a GIN index on the
+`SearchVectorField`.
+
+## Files Created
+
+- `apps/documents/models.py`
+- `apps/qa/models.py`
+- `apps/documents/migrations/0001_initial.py`
+- `apps/qa/migrations/0001_initial.py`
+- `tests/test_models.py`
+
+## File Explanations
+
+Documents are idempotent by source path and documentation version. Chunks keep
+source-derived provenance, text, token count, content hash, nullable 384-dim
+embedding, and searchable text vector. Ingestion jobs track lifecycle state.
+Query logs reserve the complete audit contract for later QA work.
+
+## Architecture
+
+The documents migration creates the pgvector extension before the chunk table,
+then creates the cosine HNSW and full-text GIN indexes. The QA migration depends
+on the configured Django user model for an optional query-log owner.
+
+## Tests
+
+- Ruff passed.
+- MyPy passed with 31 source files checked.
+- Pytest passed (7 tests).
+- `makemigrations --check --dry-run` reported no pending schema changes.
+- PostgreSQL confirmed the `vector` extension plus HNSW and GIN indexes.
+- Documents and QA initial migrations applied successfully.
+
+## Lessons
+
+The pgvector Docker image contains the extension binary but does not enable it
+in every database automatically; `VectorExtension()` must be in the migration
+before a vector column is created.
+
+## Next Step
+
+Proceed only to the authorised Phase 1 embedder and ingestion-command task.

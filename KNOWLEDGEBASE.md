@@ -331,3 +331,74 @@ their semantic meaning.
 - Store source path and anchor alongside every chunk.
 - The next authorised work is persistence models, migrations, and the pgvector
   HNSW index; do not begin embedding or query retrieval yet.
+
+---
+
+## 2026-09-20 — Phase 1, Task: Persistence models, migrations, and indexes
+
+### Purpose
+
+This task gives the parser and chunker output a durable database representation.
+It establishes the exact persistence contract needed before embeddings and
+ingestion are introduced.
+
+### Data model map
+
+```text
+Document 1 ----- * Chunk
+
+IngestionJob     tracks one ingestion lifecycle
+QueryLog         records one future QA request and its evidence
+```
+
+`Document` identifies an upstream RST source with its title, documentation
+version, canonical URL, and content hash. A unique `(source_path, doc_version)`
+constraint makes re-ingestion idempotent at the document level.
+
+`Chunk` belongs to exactly one document and stores the parser/chunker
+provenance contract: heading path, anchor, ordinal, text, token count, and
+content hash. Its unique `(document, ordinal)` constraint prevents duplicate
+positions in a document. The embedding is nullable because the parser can
+persist chunks before the later embedder populates vectors.
+
+`IngestionJob` captures pending, running, done, and failed states plus document
+and chunk counts. `QueryLog` already reserves the audit fields required by the
+locked QA design, but no query endpoint or LLM behavior is implemented yet.
+
+### Index strategy
+
+| Index | Field | Future use |
+| --- | --- | --- |
+| HNSW (`vector_cosine_ops`) | `Chunk.embedding` | Dense cosine retrieval |
+| GIN | `Chunk.search_vector` | PostgreSQL full-text search |
+| B-tree | content hashes | Idempotent ingestion lookup |
+| Unique constraints | source/version and document/ordinal | Data integrity |
+
+The HNSW parameters are deliberately fixed at `m=16` and
+`ef_construction=64`, matching the architecture specification. They establish
+the graph quality/build-cost tradeoff before baseline measurement begins.
+
+### Why pgvector extension migration matters
+
+Installing the `pgvector` Python package lets Django describe a vector field,
+but PostgreSQL also needs its server-side `vector` type. The pgvector Docker
+image provides that extension binary; `VectorExtension()` activates it in the
+actual `documind` database. It must run before the migration creates
+`vector(384)`, otherwise PostgreSQL rejects the table definition.
+
+### Verification completed
+
+- Both initial migrations applied to the live PostgreSQL container.
+- `vector` was confirmed as an enabled database extension.
+- The HNSW cosine index and GIN full-text index were confirmed in PostgreSQL.
+- Django found no ungenerated model migrations.
+- Ruff, MyPy, and seven pytest tests passed.
+
+### Constraints carried forward
+
+- Embeddings remain exactly 384 dimensions for `BAAI/bge-small-en-v1.5`.
+- Keep HNSW cosine settings at `m=16` and `ef_construction=64` unless explicitly
+  changing a locked decision.
+- Do not claim Postgres full-text search is BM25.
+- The next authorised work is batch embedding and an idempotent ingestion
+  command; retrieval endpoints remain out of scope.
