@@ -354,7 +354,7 @@ THROTTLE_ANON=10/min
 
 - [x] Phase 0: repo, Docker Compose, Django skeleton, CI skeleton, health endpoint
 - [x] Phase 1: docs fetched and pinned
-- [ ] Phase 1: parser + chunker (+ tests)
+- [x] Phase 1: parser + chunker (+ tests)
 - [ ] Phase 1: models, migrations, HNSW index
 - [ ] Phase 1: embedder + ingestion command
 - [ ] Phase 1: `vector` mode + `/api/ask/` (plain prompt)
@@ -369,6 +369,7 @@ THROTTLE_ANON=10/min
 - [ ] Stretch: Streamlit demo / AWS deployment / Kubernetes manifests
 
 **Session log** (append newest first; format `YYYY-MM-DD: what was done | next step | blockers`):
+- 2026-09-20: Built and verified hand-written Django RST parser and heading-aware chunker | next: Phase 1 models, migrations, HNSW index | blockers: none
 - 2026-09-20: Pinned Django documentation corpus to tag 5.2.9, commit c14b756185c88f7f2eb745ff061f3c221fea9de7; added reproducible sparse-fetch script | next: Phase 1 parser + chunker | blockers: none
 - 2026-09-20: Completed Phase 0 repository foundation: Django/DRF, Docker Compose, health endpoint, quality tooling, and CI skeleton | next: Phase 1 corpus pin | blockers: none
 - 2026-09-20: Project selected, stack and plan finalised, context file created | next: Phase 0 setup | blockers: none

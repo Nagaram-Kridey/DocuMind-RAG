@@ -194,3 +194,68 @@ quality contract, so ignored raw corpus data is excluded from MyPy analysis.
 ## Next Step
 
 Proceed only to the authorised Phase 1 parser and heading-aware chunker task.
+
+---
+
+# Session 004
+
+Phase: Phase 1 — Baseline
+Task: RST parser and heading-aware chunker
+Status: Complete
+
+## Objective
+
+Convert pinned Django RST files into provenance-preserving sections and
+retrieval-ready chunks without relying on LangChain or another retrieval
+framework.
+
+## Why this task exists
+
+Dense retrieval requires bounded text units, while the evaluation design
+requires source paths and stable anchors that survive re-chunking. Parsing and
+chunking establish both before database models or embeddings are added.
+
+## Concepts
+
+The parser recognises two-line RST headings and explicit RST targets. The
+chunker groups paragraph blocks within each heading section, keeps indented code
+blocks together, applies a configurable word-based overlap, and prefixes each
+chunk with its full heading path for downstream embeddings.
+
+## Files Created
+
+- `apps/documents/parser.py`
+- `apps/documents/chunker.py`
+- `tests/test_documents_processing.py`
+
+## File Explanations
+
+`parser.py` returns immutable parsed-document and parsed-section dataclasses,
+including corpus-relative source paths, heading paths, and anchors. `chunker.py`
+returns immutable chunks with ordinal, provenance, prefixed text, and a
+consistent lightweight token estimate. Tests cover heading nesting, explicit
+anchors, code-block preservation, overlap validation, and heading prefixes.
+
+## Architecture
+
+RST file → `ParsedDocument` / `ParsedSection` → `DocumentChunk`. This is a
+pure, database-free pipeline. Later ingestion persists its output, and later
+embedding code uses the already-prefixed chunk text.
+
+## Tests
+
+- Ruff passed.
+- MyPy passed with 28 source files checked.
+- Pytest passed (5 tests).
+- A real pinned-corpus smoke check parsed `topics/db/models.txt` into 37
+  sections and 41 chunks.
+
+## Lessons
+
+Anchors must be derived from explicit RST targets when available and from a
+predictable heading slug otherwise. This keeps evaluation labels independent of
+database IDs and chunk ordinal changes.
+
+## Next Step
+
+Proceed only to the authorised Phase 1 models, migrations, and HNSW index task.

@@ -237,3 +237,97 @@ from MyPy while DocuMind code remains strictly type-checked.
 - Later ingestion must retain source paths and stable heading-derived anchors.
 - Improve the parser rather than editing the upstream corpus.
 - The next authorised work is the parser and heading-aware chunker.
+
+---
+
+## 2026-09-20 — Phase 1, Task: RST parser and heading-aware chunker
+
+### Purpose
+
+This task turns the pinned Django documentation from raw RST files into small,
+traceable units that later stages can store, embed, retrieve, and evaluate. It
+is deliberately hand-written so every transformation is explainable and no
+retrieval framework hides the mechanics.
+
+### The processing model
+
+```text
+RST file
+  |
+  v
+parser: title + heading sections + anchors
+  |
+  v
+chunker: paragraph groups + code-block preservation + overlap
+  |
+  v
+retrieval-ready chunk: source path, heading path, anchor, ordinal, text
+```
+
+`parse_rst_file()` reads a corpus file and records its path relative to the
+pinned `docs/` root. That relative path is the stable document identity used by
+later golden-set labels. `parse_rst()` can also operate on in-memory RST text,
+which makes parser tests fast and focused.
+
+### Heading and anchor handling
+
+The parser recognises conventional two-line RST headings: a non-indented title
+followed by a uniform adornment line such as `====` or `----`. The first heading
+becomes the document title. Later headings form a path, for example:
+
+```text
+Models > Quick example > Field options
+```
+
+An explicit RST target like `.. _field-options:` is preferred as the section
+anchor because it matches the upstream documentation's stable link identity.
+When no target exists, a predictable slug of the heading path is used. This is
+why an evaluation label can reference a document path and anchor rather than a
+database chunk ID.
+
+### Chunk boundaries and context
+
+The chunker never crosses a heading section, so a chunk has unambiguous topical
+provenance. Within a section it groups blocks separated by blank lines up to a
+default target of 400 lightweight word tokens, adding 50 tokens of overlap to
+the following chunk. These are configuration constants rather than model-token
+counts; a future tokenizer can refine the count without changing source
+identity.
+
+Indented code blocks stay together as a single block. They may make an
+individual chunk exceed the target, which is intentional: splitting a code
+example damages the technical meaning more than a slightly larger chunk harms
+retrieval. Each final chunk starts with its heading path, preserving context for
+the later embedding model.
+
+### Provenance contract
+
+Every `DocumentChunk` carries:
+
+| Field | Why it matters |
+| --- | --- |
+| `source_path` | Identifies the pinned RST document |
+| `heading_path` | Provides human-readable context and embedding prefix |
+| `anchor` | Stable retrieval/evaluation label within a document |
+| `ordinal` | Preserves position within an ingestion run |
+| `text` | Heading-prefixed text for future embedding |
+| `token_count` | Supports chunk-size observability and later persistence |
+
+The model layer in the next task should persist these values without changing
+their semantic meaning.
+
+### Verification completed
+
+- Unit tests verified nesting, explicit anchors, code-block preservation,
+  heading prefixes, chunk ordinals, and invalid overlap rejection.
+- The real `topics/db/models.txt` corpus file produced 37 sections and 41
+  chunks.
+- Ruff, MyPy, and all five pytest tests passed.
+
+### Constraints carried forward
+
+- Do not replace this hand-written pipeline with LangChain.
+- Keep code blocks intact during later ingestion transformations.
+- Store source path and anchor alongside every chunk.
+- The next authorised work is persistence models, migrations, and the pgvector
+  HNSW index; do not begin embedding or query retrieval yet.
