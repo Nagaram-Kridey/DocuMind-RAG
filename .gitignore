@@ -9,3 +9,5 @@ coverage.xml
 htmlcov/
 *.sqlite3
 staticfiles/
+data/
+dist/

@@ -159,3 +159,81 @@ committed lock file.
 The next authorised Phase 0 task can build on this foundation. Its knowledge
 entry should describe only the work actually completed and link back to this
 entry where it relies on the settings, service, or quality structure above.
+
+---
+
+## 2026-09-20 — Phase 1, Task: Fetch and pin the Django documentation corpus
+
+### Purpose
+
+The baseline retrieval system needs stable source text before it can parse,
+chunk, embed, or evaluate anything. This task selects one immutable Django
+documentation revision and makes obtaining it repeatable.
+
+### Corpus identity
+
+| Property | Pinned value |
+| --- | --- |
+| Documentation family | Django 5.2 |
+| Upstream release tag | `5.2.9` |
+| Immutable source commit | `c14b756185c88f7f2eb745ff061f3c221fea9de7` |
+| Upstream repository | `https://github.com/django/django.git` |
+| Local documentation path | `data/django-5.2/docs` |
+
+The tag is convenient for people, but the commit hash is the actual
+immutability guarantee. The upstream tag is annotated, so the fetch script
+verifies the resolved commit rather than only trusting the tag name.
+
+### What changed
+
+`config/corpus.py` contains constants future ingestion code can import.
+`scripts/fetch_docs.sh` performs a sparse checkout, requests only the upstream
+`docs/` tree, and verifies the final commit. It exits successfully without
+redownloading when the right checkout already exists; it stops if a conflicting
+checkout exists. The raw corpus is ignored by Git because the versioned script
+and commit make it reproducible without committing third-party source.
+
+### Why RST source is preferred
+
+The Django repository's reStructuredText retains document paths, headings,
+paragraphs, and code blocks more directly than scraped HTML. The next task can
+therefore create heading-aware chunks and stable source anchors for later
+golden-set labels.
+
+### Relationship to later retrieval work
+
+```text
+pinned Django RST source
+          |
+          v
+parser and heading-aware chunker
+          |
+          v
+stable source path + heading anchor + chunk text
+          |
+          v
+embeddings, PostgreSQL records, and retrieval evaluation
+```
+
+Every retrieval mode must use this same corpus. Otherwise apparent quality
+differences might result from corpus drift instead of retrieval changes.
+
+### Quality boundary discovered
+
+The raw Django documentation includes Python modules for its Sphinx build.
+Those files are third-party data rather than DocuMind application code. MyPy
+initially discovered them and produced unrelated errors, so `data/` is excluded
+from MyPy while DocuMind code remains strictly type-checked.
+
+### Verification completed
+
+- The sparse checkout fetched and verified the pinned commit.
+- A second script invocation confirmed idempotency.
+- Ruff, MyPy, and both pytest tests passed.
+
+### Constraints carried forward
+
+- Do not mix another Django version into the corpus directory.
+- Later ingestion must retain source paths and stable heading-derived anchors.
+- Improve the parser rather than editing the upstream corpus.
+- The next authorised work is the parser and heading-aware chunker.

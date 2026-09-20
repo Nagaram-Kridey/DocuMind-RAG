@@ -138,3 +138,59 @@ makes both documents easier to use.
 ## Next Step
 
 Append a new knowledgebase entry only when the next authorised task completes.
+
+---
+
+# Session 003
+
+Phase: Phase 1 — Baseline
+Task: Fetch and pin Django documentation corpus
+Status: Complete
+
+## Objective
+
+Fetch the official Django documentation source at one reproducible Django 5.2
+revision and record that pin in code and public documentation.
+
+## Why this task exists
+
+Retrieval experiments are only comparable when they use the same corpus. A
+fixed source commit prevents silent documentation drift.
+
+## Concepts
+
+The corpus pin has four parts: version (`5.2`), tag (`5.2.9`), immutable Git
+commit (`c14b756185c88f7f2eb745ff061f3c221fea9de7`), and source path.
+
+## Files Created
+
+- `config/corpus.py`
+- `scripts/fetch_docs.sh`
+- `tests/test_corpus.py`
+
+## File Explanations
+
+The corpus module centralises metadata. The fetch script uses sparse checkout to
+obtain only `docs/`, verifies the commit, and safely succeeds on a repeat run.
+The raw checkout is ignored because it is reproducible source data.
+
+## Architecture
+
+The local corpus resides at `data/django-5.2/docs`. Later parsers must use this
+path and must not combine it with another Django documentation version.
+
+## Tests
+
+- Sparse checkout fetched and verified tag `5.2.9` at the pinned commit.
+- A second script run confirmed idempotency.
+- Ruff and MyPy passed.
+- Pytest passed (2 tests).
+
+## Lessons
+
+The downloaded third-party source includes Python files outside DocuMind's type
+quality contract, so ignored raw corpus data is excluded from MyPy analysis.
+
+## Next Step
+
+Proceed only to the authorised Phase 1 parser and heading-aware chunker task.
