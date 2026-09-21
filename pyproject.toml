@@ -11,6 +11,10 @@ dependencies = [
     "pgvector>=0.3,<0.4",
     "redis>=5.2,<6.0",
     "gunicorn>=23.0,<24.0",
+    "numpy>=1.26,<2.3",
+    "sentence-transformers>=3.3,<4.0",
+    "anthropic>=0.40,<1.0",
+    "openai>=1.55,<2.0",
 ]
 
 [dependency-groups]
@@ -46,8 +50,18 @@ warn_unused_ignores = true
 exclude = ["^\\.venv/", "^data/", "^apps/.*/migrations/"]
 
 [[tool.mypy.overrides]]
-module = ["redis", "pgvector.*"]
+module = [
+    "redis",
+    "pgvector.*",
+    "sentence_transformers.*",
+    "transformers.*",
+    "torch.*",
+    "huggingface_hub.*",
+    "anthropic.*",
+    "openai.*",
+]
 ignore_missing_imports = true
+follow_imports = "skip"
 
 [tool.django-stubs]
 django_settings_module = "config.settings.dev"

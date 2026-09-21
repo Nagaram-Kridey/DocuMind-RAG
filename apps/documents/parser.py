@@ -44,8 +44,17 @@ def parse_rst(source_path: str, text: str) -> ParsedDocument:
             sections,
             source_path,
             heading_stack,
-            _anchor_before(lines, headings[0][0]) if headings else None,
+            _anchor_before(lines, headings[0][0]),
             lines[first_content_line : section_headings[0][0]],
+        )
+    elif headings:
+        # A document with only a title still owns its introductory body text.
+        _append_section(
+            sections,
+            source_path,
+            heading_stack,
+            _anchor_before(lines, headings[0][0]),
+            lines[first_content_line:],
         )
 
     for index, (line_number, heading, marker, content_start) in enumerate(section_headings):
