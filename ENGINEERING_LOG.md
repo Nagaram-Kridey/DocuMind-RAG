@@ -852,3 +852,147 @@ unless the payload is written to a file without a UTF-8 BOM.
 
 Proceed to the full-corpus ingestion, then the golden-set build task.
 
+---
+
+# Session 012
+
+Phase: Phase 1 — Baseline
+Task: Live golden-set draft via Ollama Cloud
+Status: Complete (draft pending manual review)
+
+## Objective
+
+Run `eval/build_golden_set.py` against the live LLM and the fully ingested
+corpus to produce the review-ready 100-question golden-set draft.
+
+## Why this task exists
+
+The Phase 1 acceptance criteria require a golden set (100 questions, reviewed
+subset, dev/heldout split) before any baseline metric can be computed. The
+drafting script existed and was unit-tested; it had never run against a real
+LLM and the real database.
+
+## Concepts
+
+The draft flow samples 9 ingested chunks per topic area, lets the LLM draft a
+question per excerpt choosing chunks by index only, and takes path/anchor
+provenance from the database — never from the LLM — so a hallucinated source
+cannot enter the golden set. Ten unanswerable questions are drafted in a second
+call. Splits are deterministic: fixed offset sets, no randomness.
+
+## Files Changed
+
+- `eval/build_golden_set.py` — topic-area prefixes `ref/views/` →
+  `ref/class-based-views/`, `ref/settings/` → `ref/settings`,
+  `topics/migrations/` → `topics/migrations` (the originals matched zero
+  ingested documents); draft loop now also catches `IndexError` for
+  out-of-range LLM indices; `build_draft()` gained an `llm_model` parameter
+  recorded in each question's `notes` for reproducibility; `main()` passes the
+  live client's model name; import sorting.
+- `tests/test_build_golden_set.py` — `FakeLLMClient` calls fixed to pass
+  response lists; no behaviour change to assertions.
+
+## File Explanations
+
+The prefix fixes matter because chunk provenance paths are corpus-relative
+file paths (`ref/views.txt` is a file, not a directory), so a trailing slash
+prefix can match nothing. The `llm_model` note makes each drafted question
+traceable to the generating model even if `.env` changes later.
+
+## Architecture
+
+LLM (Ollama Cloud, `gpt-oss:20b` via the OpenAI-compatible endpoint) drafts
+questions from DB-sampled chunk excerpts; provenance is attached in Python;
+`validate_golden_set()` checks IDs, splits, answerability shape, and corpus
+existence before the JSONL is written.
+
+## Tests / Verification
+
+- Ruff: all checks passed.
+- MyPy: no issues in 52 source files.
+- Pytest: 71 passed.
+- Live run: `python -m eval.build_golden_set --output eval/golden_set_draft.jsonl`
+  → `total=100 answerable=90 unanswerable=10 dev=70 heldout=30`.
+- Draft written to `eval/golden_set_draft.jsonl` (100 lines), each line a valid
+  JSON record with DB-verified path/anchor gold sources.
+
+## Lessons
+
+1. A stale OS-level `LLM_PROVIDER=anthropic` silently overrode `.env` (uv's
+   `--env-file` does not override existing environment variables), producing a
+   confusing Anthropic 401. Clear process-level LLM env vars before debugging
+   provider configuration.
+2. Corpus-relative path prefixes must match actual file layout; verify with a
+   `SELECT DISTINCT source_path` probe before assuming a directory exists.
+3. `per_area=9` requires the sampled area to hold ≥9 chunks; small reference
+   files like `ref/views.txt` (7 chunks) are not viable areas.
+
+## Next Step
+
+The owner manually reviews ≥40 draft questions and promotes the reviewed set
+to `eval/golden_set.jsonl`; then implement `eval/run_eval.py` and measure the
+vector baseline on `dev` and `heldout`.
+
+---
+
+# Session 013
+
+Phase: Phase 1 — Baseline
+Task: Golden-set draft run and harness fixes
+Status: Complete (draft pending manual review)
+
+## Objective
+
+Re-run `eval/build_golden_set.py` live after fixing the harness defects found
+while validating the quality gates, and refresh the draft artifact.
+
+## Why this task exists
+
+The golden-set draft is the Phase 1 acceptance deliverable; it must be produced
+by a harness that passes ruff, mypy, and pytest cleanly, with provenance that
+always comes from the database rather than the LLM.
+
+## Concepts
+
+Defensive parsing of LLM output: an LLM can return an index outside the sampled
+range even when the prompt fixes the range, so out-of-range indices must be
+dropped, not crashed on. The canonical draft path is `eval/drafts/` so that
+working-tree artifacts are not confused with the committed golden set.
+
+## Files Changed
+
+- `eval/build_golden_set.py` — draft loop catches `IndexError` when the LLM
+  returns an out-of-range chunk index (dropped like other invalid items);
+  canonical draft output path `eval/drafts/golden_set_draft.jsonl`.
+- `tests/test_build_golden_set.py` — deduplication test now supplies responses
+  as a list (matching the fakes' contract) instead of a bare string.
+
+## Architecture
+
+Unchanged: DB-sampled excerpts → LLM drafts questions by index only → Python
+attaches DB-verified path/anchor provenance → `validate_golden_set()` gates the
+JSONL write.
+
+## Tests / Verification
+
+- Ruff: all checks passed.
+- MyPy: no issues in 52 source files.
+- Pytest: 71 passed.
+- Live re-run: `total=100 answerable=90 unanswerable=10 dev=70 heldout=30`,
+  written to `eval/drafts/golden_set_draft.jsonl` (100 lines).
+
+## Lessons
+
+The earlier draft run wrote `eval/golden_set_draft.jsonl`; adopting
+`eval/drafts/` as the canonical home keeps generated artifacts out of the
+eval package root. Keep fake-client call signatures and production call sites
+in lockstep — a bare-string argument passed mypy only because the fake's
+constructor accepted a union.
+
+## Next Step
+
+Owner reviews ≥40 questions in `eval/drafts/golden_set_draft.jsonl`, then the
+reviewed set is promoted to `eval/golden_set.jsonl` and `eval/run_eval.py`
+measures the vector baseline on dev and heldout.
+
+

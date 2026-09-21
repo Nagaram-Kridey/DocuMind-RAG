@@ -362,7 +362,7 @@ THROTTLE_ANON=10/min
 - [x] Phase 1: CPU-only torch pinned; stack re-verified (ruff/mypy/59 tests green, 384-dim embedding smoke confirmed)
 - [x] Phase 1: `ollama` provider (Ollama Cloud, `gpt-oss:20b`) wired via `LLM_BASE_URL`; live `/api/ask/` verified end-to-end with citations and QueryLog rows
 - [x] Phase 1: full corpus ingestion (643 files → 6,487 chunks, all embedded, job `done`)
-- [ ] Phase 1: golden set built, reviewed, split
+- [ ] Phase 1: golden set built, reviewed, split — **draft built (100 Qs, 70/30 split, model recorded); ≥40-question manual review still outstanding**
 - [ ] Phase 1: `run_eval.py`; baseline saved
 - [ ] Phase 2: full-text search + RRF + `hybrid` mode; results saved
 - [ ] Phase 3: reranker + `hybrid_rerank`; grounded prompt; refusal; citation validation
@@ -373,11 +373,13 @@ THROTTLE_ANON=10/min
 - [ ] Stretch: Streamlit demo / AWS deployment / Kubernetes manifests
 
 **Session log** (append newest first; format `YYYY-MM-DD: what was done | next step | blockers`):
+- 2026-09-21: Ran the live golden-set draft (`eval/build_golden_set.py` via Ollama Cloud `gpt-oss:20b`) — 100 questions written to `eval/golden_set_draft.jsonl` (90 answerable / 10 unanswerable, 70 dev / 30 heldout, model recorded per question); fixed three topic-area prefixes (`ref/class-based-views/`, `ref/settings`, `topics/migrations`) that matched no ingested chunks, plus an IndexError guard, mypy type fix, and a stale OS-level `LLM_PROVIDER=anthropic` discovered overriding `.env` | next: ≥40-question manual review, then promote to `eval/golden_set.jsonl` and build `run_eval.py` | blockers: manual review needs the owner
 - 2026-09-21: Committed and pushed to GitHub — `origin/main` = `35409c6`
 (Sessions 010–011: `2271eeb` Ollama Cloud provider + live RAG, `35409c6` full
 ingestion + LLM validation); working tree clean; handoff §8 refreshed (ingest
 full ✅, tests 61) | next: golden-set drafting (`eval/build_golden_set.py`), ≥40
 manual review, `run_eval.py`, baseline | blockers: none
+- 2026-09-21: Hardened the golden-set draft harness (out-of-range LLM indices dropped instead of crashing; canonical draft at `eval/drafts/golden_set_draft.jsonl`; fixed a stale OS-level `LLM_PROVIDER` that caused a 401) and re-ran live — 100 Qs (90/10, 70 dev/30 heldout) with DB-verified provenance; gates: ruff/mypy clean, 71 tests passing | next: owner reviews ≥40 questions, promote to `eval/golden_set.jsonl`, then `run_eval.py` and the vector baseline | blockers: none
 - 2026-09-21: Full corpus ingestion completed (643 files → 640 docs / 6,487 chunks, 100% embedded, job 4 `done`, ~13 min); rechecked all connections (health 200, Redis PONG, Postgres reachable); validated LLM end-to-end over the full index — raw-SQL and select_related questions answered with correct citations (top score 0.86), off-corpus question correctly declined | next: golden-set drafting + review, `run_eval.py`, baseline | blockers: none
 - 2026-09-21: Added `ollama` provider routed through the OpenAI SDK at `https://ollama.com/v1` (`LLM_BASE_URL` setting, 2 factory tests, 61 passing); live end-to-end verified — 2 real questions answered with citations via `gpt-oss:20b`, QueryLog rows 1–2 written, warm latency embed 18 ms / retrieve 16 ms / LLM ~3.5 s; fixed a corrupted container venv by recreating the `web_venv` volume | next: full corpus ingestion (643 files) | blockers: none
 - 2026-09-21: Pinned CPU-only torch (`torch>=2.2,<3.0` via the PyTorch CPU index; lock dropped all CUDA/nvidia/triton entries), re-synced and re-verified (ruff/mypy/59 tests green, interpreter reports `2.14.0+cpu`), and proved the stack with an isolated smoke ingestion (384 dims via `vector_dims()`, then cleaned child-first back to 3 docs / 14 chunks / 2 jobs) | next: full corpus ingestion | blockers: none

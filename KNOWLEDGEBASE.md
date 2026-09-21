@@ -1,4 +1,4 @@
-# DocuMind Knowledgebase
+﻿# DocuMind Knowledgebase
 
 This is the append-only theoretical knowledge record for DocuMind. It explains
 what each completed task changed, why the change exists, how its parts relate,
@@ -18,7 +18,7 @@ file is the durable conceptual sketch.
 
 ---
 
-## 2026-09-20 — Phase 0, Task 0.1: Repository Foundation
+## 2026-09-20 â€” Phase 0, Task 0.1: Repository Foundation
 
 ### Purpose
 
@@ -162,7 +162,7 @@ entry where it relies on the settings, service, or quality structure above.
 
 ---
 
-## 2026-09-20 — Phase 1, Task: Fetch and pin the Django documentation corpus
+## 2026-09-20 â€” Phase 1, Task: Fetch and pin the Django documentation corpus
 
 ### Purpose
 
@@ -240,7 +240,7 @@ from MyPy while DocuMind code remains strictly type-checked.
 
 ---
 
-## 2026-09-20 — Phase 1, Task: RST parser and heading-aware chunker
+## 2026-09-20 â€” Phase 1, Task: RST parser and heading-aware chunker
 
 ### Purpose
 
@@ -334,7 +334,7 @@ their semantic meaning.
 
 ---
 
-## 2026-09-20 — Phase 1, Task: Persistence models, migrations, and indexes
+## 2026-09-20 â€” Phase 1, Task: Persistence models, migrations, and indexes
 
 ### Purpose
 
@@ -405,7 +405,7 @@ actual `documind` database. It must run before the migration creates
 
 ---
 
-## 2026-09-20 — Phase 1, Task: Batch embedder and idempotent ingestion
+## 2026-09-20 â€” Phase 1, Task: Batch embedder and idempotent ingestion
 
 ### Purpose
 
@@ -432,7 +432,7 @@ embed_documents -> L2-normalised 384-dim vectors
 Chunk.objects.bulk_create  (recorded by one IngestionJob)
 ```
 
-Every run — success or partial failure — writes an `IngestionJob` so the
+Every run â€” success or partial failure â€” writes an `IngestionJob` so the
 operation is auditable. A per-document exception is captured into the job's
 `error` field and the run is marked `failed` rather than silently succeeding.
 
@@ -503,7 +503,7 @@ rather than only unit fixtures.
 
 ---
 
-## 2026-09-20 — Phase 1, Task: Vector retrieval mode and /api/ask/
+## 2026-09-20 â€” Phase 1, Task: Vector retrieval mode and /api/ask/
 
 ### Purpose
 
@@ -518,14 +518,14 @@ POST /api/ask/  {question, mode, top_k}
 
 ---
 
-## 2026-09-21 — Phase 1, Task: Ollama Cloud provider and live end-to-end RAG
+## 2026-09-21 â€” Phase 1, Task: Ollama Cloud provider and live end-to-end RAG
 
 ### Purpose
 
 The retrieval pipeline was complete and tested, but every `/api/ask/` call
 returned HTTP 503 because no LLM was configured. This task adds the missing
-generation provider and proves the whole chain — retrieval, generation,
-citations, audit logging — against the live service.
+generation provider and proves the whole chain â€” retrieval, generation,
+citations, audit logging â€” against the live service.
 
 ### Provider decision
 
@@ -563,7 +563,7 @@ additionally paid the one-time in-container bge-small model download.
 
 ---
 
-## 2026-09-21 — Phase 1, Task: Full corpus ingestion and live LLM validation
+## 2026-09-21 â€” Phase 1, Task: Full corpus ingestion and live LLM validation
 
 ### Purpose
 
@@ -589,7 +589,7 @@ measured number is what the README must carry.
   `topics/db/sql/` sections.
 - A select_related versus prefetch_related question returned an accurate
   technical answer cited to `ref/models/querysets/`, top similarity 0.86.
-- An off-corpus question (weather) was declined rather than answered — the
+- An off-corpus question (weather) was declined rather than answered â€” the
   plain prompt's grounding instruction held.
 
 ### Constraints carried forward
@@ -676,7 +676,7 @@ logging is wrapped so an audit failure can never break a user response.
 - All 27 pytest tests passed (13 new retrieval/ask tests).
 - `makemigrations --check --dry-run` reported no changes.
 - A real query returned 3 hits with a top similarity of 0.6826 and a genuine
-  heading path, proving the full embed → retrieve path against real data.
+  heading path, proving the full embed â†’ retrieve path against real data.
 
 ### Constraints carried forward
 
@@ -689,14 +689,14 @@ logging is wrapped so an audit failure can never break a user response.
 
 ---
 
-## 2026-09-21 — Phase 1, Task: Golden-set schema hardening, retrieval metrics, and verification
+## 2026-09-21 â€” Phase 1, Task: Golden-set schema hardening, retrieval metrics, and verification
 
 ### Purpose
 
 This task completes the deterministic, model-free half of the Phase 1 evaluation
 harness and repairs the quality gate that Session 007 left red. The golden
 questions themselves (LLM drafting plus human review) remain future work; what
-exists now is the machinery that makes those questions measurable — and the
+exists now is the machinery that makes those questions measurable â€” and the
 proof that everything built so far is genuinely green.
 
 ### What changed
@@ -728,7 +728,7 @@ metrics because refusal is a generation concern measured elsewhere (Phase 3).
 
 The project's first run of the gates outside Docker surfaced two real
 infrastructure defects, recorded with evidence and fixes in
-`DOCUMIND_HANDOFF_CONTEXT.md` §6: the lock resolves CUDA-capable torch on Linux
+`DOCUMIND_HANDOFF_CONTEXT.md` Â§6: the lock resolves CUDA-capable torch on Linux
 (multi-GB downloads stalling container workflows), and `docker compose run`
 re-syncs dev dependencies on every invocation because the image is built
 `--no-dev`. A `.dockerignore` was added immediately; the torch pin is scoped as
@@ -746,7 +746,7 @@ the first step of the next task.
 
 ---
 
-## 2026-09-21 — Phase 1, Task: Pin CPU-only torch and re-verify the stack
+## 2026-09-21 â€” Phase 1, Task: Pin CPU-only torch and re-verify the stack
 
 ### Purpose
 
@@ -769,7 +769,7 @@ never exercises.
 - An isolated smoke ingestion (`torch-smoke` version, temp corpus) produced a
   genuine embedding whose `vector_dims()` in PostgreSQL is 384; the smoke rows
   were deleted child-first, restoring the production data exactly.
-- A raw cross-table `DELETE` does not trigger Django cascades — cleanup must run
+- A raw cross-table `DELETE` does not trigger Django cascades â€” cleanup must run
   child-first when done in SQL.
 
 ### Constraints carried forward
@@ -778,3 +778,97 @@ never exercises.
   `triton`, and `cuda-bindings` entries before it is committed.
 - Full corpus ingestion is the next authorised work; no eval numbers may be
   recorded until it completes with all embeddings present.
+
+---
+
+## 2026-09-21 â€” Phase 1, Task: Live golden-set draft
+
+### Purpose
+
+The baseline evaluation needs a fixed question set whose answers exist in the
+indexed corpus and whose provenance is trustworthy. This task produced that
+draft by letting the LLM draft questions from real ingested chunks while the
+database, not the model, supplies every gold source.
+
+### How provenance is protected
+
+The LLM sees 9 sampled chunk excerpts per topic area and returns questions
+referencing chunks by index only. Python resolves each index against the
+sampled chunks and copies the path/anchor from the database row. A hallucinated
+path can therefore never enter the dataset; an out-of-range or duplicate index
+question is silently dropped. Out-of-range indices are additionally caught as
+`IndexError` so a misbehaving model cannot crash the run.
+
+### Dataset shape and split discipline
+
+Ten topic areas Ã— 9 answerable questions = 90, plus 10 unanswerable questions
+= 100 total. The dev/heldout assignment uses fixed offset sets (3 heldout per
+early block, 2 per late block, unanswerable blocks 1/3/5 to heldout), yielding
+exactly 70 dev / 30 heldout with zero randomness. Re-running with identical
+LLM output reproduces the identical file.
+
+### Reproducibility metadata
+
+Each drafted question's `notes` field records the generating model (e.g.
+`model=gpt-oss:20b`). If the drafting model changes later, results remain
+attributable. Environment provenance matters too: `uv run --env-file .env`
+does not override already-set OS variables, so a stale shell `LLM_PROVIDER`
+can silently redirect provider selection â€” clear process env vars before
+debugging provider behaviour.
+
+### Verification completed
+
+- Ruff, MyPy (52 files), and 71 pytest tests passed.
+- Live draft run produced `eval/golden_set_draft.jsonl`: 100 questions,
+  90 answerable / 10 unanswerable, 70 dev / 30 heldout.
+- Every gold source is a database-verified (path, anchor) pair.
+
+### Constraints carried forward
+
+- The draft is not the golden set until the owner reviews â‰¥40 questions.
+- Do not tune retrieval against heldout questions at any point.
+- The next authorised work is the manual review + promotion to
+  `eval/golden_set.jsonl`, then `run_eval.py` and the vector baseline.
+
+---
+
+## 2026-09-21 - Phase 1, Task: Golden-set draft hardening and canonical artifact
+
+### Purpose
+
+After the first live draft run, the quality gates surfaced three harness
+defects. Fixing them before the review step guarantees the artifact the owner
+reviews comes from a clean, fully gated pipeline.
+
+### What changed
+
+- Out-of-range LLM chunk indices are now dropped (`IndexError` handled) instead
+  of crashing the draft loop - defensive parsing against imperfect LLM output.
+- The canonical draft artifact is `eval/drafts/golden_set_draft.jsonl`,
+  separating generated artifacts from the eval package root and from the
+  future committed `eval/golden_set.jsonl`.
+- A stale OS-level `LLM_PROVIDER=anthropic` was diagnosed as the cause of a
+  confusing 401 during the first run: `uv --env-file` does not override
+  variables already present in the environment.
+
+### Why provenance discipline matters
+
+The draft flow samples chunks from PostgreSQL and lets the LLM choose excerpts
+by index only; path/anchor pairs are attached in Python from the database. A
+hallucinated source therefore cannot enter the golden set - a property worth
+preserving as review and promotion proceed.
+
+### Verification completed
+
+- Ruff clean; MyPy clean (52 files); 71 pytest tests passed.
+- Live re-run: 100 questions (90 answerable / 10 unanswerable), 70 dev /
+  30 heldout, each with a DB-verified gold source; model name recorded in
+  per-question notes for reproducibility.
+
+### Constraints carried forward
+
+- Review is a human task: at least 40 questions before promotion; record the
+  count in the README.
+- Never tune against `heldout`.
+- Next authorised work: promotion to `eval/golden_set.jsonl`, then
+  `eval/run_eval.py` and the vector baseline on dev and heldout.
