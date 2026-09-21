@@ -1,0 +1,39 @@
+# Keep the build context small and the image reproducible.
+#
+# The pinned Django documentation corpus (data/) contains ~640 RST files and a
+# full .git checkout. It is reproducible via scripts/fetch_docs.sh and is
+# bind-mounted by docker-compose for local ingestion, so it must never be baked
+# into the image.
+data/
+
+# Host-owned environment artifacts. On Windows and macOS these contain binaries
+# that cannot run inside the Linux image and would shadow the container venv.
+.venv/
+venv/
+
+# Version control and CI metadata are not runtime dependencies.
+.git/
+.gitignore
+.github/
+
+# Local secrets; the container receives configuration through env_file instead.
+.env
+
+# Caches, coverage output, and build artifacts.
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+staticfiles/
+
+# Local databases and evaluation scratch output (results/ is committed to Git,
+# but it is not needed to build or run the API image).
+*.sqlite3
+eval/results/

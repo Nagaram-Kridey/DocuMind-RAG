@@ -358,8 +358,9 @@ THROTTLE_ANON=10/min
 - [x] Phase 1: models, migrations, HNSW index
 - [x] Phase 1: embedder + ingestion command
 - [x] Phase 1: `vector` mode + `/api/ask/` (plain prompt)
+- [x] Phase 1: golden-set schema, validation, and hand-written metrics (+ tests)
 - [ ] Phase 1: golden set built, reviewed, split
-- [ ] Phase 1: metrics + `run_eval.py`; baseline saved
+- [ ] Phase 1: `run_eval.py`; baseline saved
 - [ ] Phase 2: full-text search + RRF + `hybrid` mode; results saved
 - [ ] Phase 3: reranker + `hybrid_rerank`; grounded prompt; refusal; citation validation
 - [ ] Phase 3: RAGAS run; three-way table filled (heldout)
@@ -369,6 +370,7 @@ THROTTLE_ANON=10/min
 - [ ] Stretch: Streamlit demo / AWS deployment / Kubernetes manifests
 
 **Session log** (append newest first; format `YYYY-MM-DD: what was done | next step | blockers`):
+- 2026-09-21: Hardened `eval/golden_set.py` (typed parsing, dataset validation, summary), added hand-written `eval/metrics.py` (Recall@k, hit@k, MRR@k, source matching), 32 new tests (59 passed), fixed the mypy gate, added `.dockerignore`, documented host-vs-container quality-gate workflows, and created `DOCUMIND_HANDOFF_CONTEXT.md` with the full verification report and production/deployment gaps | next: fix CPU-only torch (handoff defect A), full corpus ingestion, golden-set drafting + review, `run_eval.py`, baseline results | blockers: `docker compose run web` re-downloads a multi-GB CUDA torch stack inside Linux, so the container test workflow stalls (handoff defects A–B); host workflow verified green
 - 2026-09-20: Added `vector` retrieval mode, provider-agnostic `LLMClient`, and `POST /api/ask/` with plain prompt, citations, timings, and QueryLog audit; real query returned 3 hits (top similarity 0.68) | next: Phase 1 golden set + metrics + baseline eval | blockers: none
 - 2026-09-20: Added cached bge-small-en-v1.5 embedder and an idempotent ingestion command (document-level skip, chunk-level embedding reuse); real run created 3 docs / 14 chunks with 384-dim vectors and a repeat run skipped unchanged files | next: Phase 1 `vector` mode + `/api/ask/` plain prompt | blockers: none
 - 2026-09-20: Added persistence models, migrations, pgvector extension, HNSW and GIN indexes; verified against PostgreSQL | next: Phase 1 embedder + ingestion command | blockers: none

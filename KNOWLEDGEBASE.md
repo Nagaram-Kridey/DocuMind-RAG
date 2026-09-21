@@ -585,3 +585,60 @@ logging is wrapped so an audit failure can never break a user response.
 - Keep the LLM behind the `LLMClient` protocol; never call a provider in tests.
 - The next authorised work is the 100-question golden set, `metrics.py`, and
   `run_eval.py` to record the baseline vector numbers.
+
+---
+
+## 2026-09-21 — Phase 1, Task: Golden-set schema hardening, retrieval metrics, and verification
+
+### Purpose
+
+This task completes the deterministic, model-free half of the Phase 1 evaluation
+harness and repairs the quality gate that Session 007 left red. The golden
+questions themselves (LLM drafting plus human review) remain future work; what
+exists now is the machinery that makes those questions measurable — and the
+proof that everything built so far is genuinely green.
+
+### What changed
+
+`eval/golden_set.py` was rewritten into a strict contract: typed record parsing
+with explicit `isinstance` checks, a `GoldenSetValidationError` raised for every
+malformed input, `validate_golden_set()` for dataset-level invariants (ID pattern
+`q\d{3}`, duplicate IDs, dev+heldout coverage, answerable/unanswerable shape,
+`.txt` path shape, on-disk corpus check), and `summarise_golden_set()` for the
+counts the README must eventually quote.
+
+`eval/metrics.py` implements Recall@k, hit@k, and MRR@k from scratch. Ground truth
+is `(source_path, anchor)` because chunk IDs do not survive re-chunking; an empty
+gold anchor is a path-level label. Recall is genuine per-question source recall,
+not a binary hit rate, and unanswerable questions are excluded from retrieval
+metrics because refusal is a generation concern measured elsewhere (Phase 3).
+
+### Verification completed
+
+- Ruff passed; MyPy passed (50 source files, zero errors, no blanket ignores).
+- All 59 pytest tests passed (27 pre-existing + 32 new with hand-computed values).
+- `makemigrations --check --dry-run` reported no changes.
+- Live PostgreSQL re-confirmed: `vector` extension, HNSW + GIN indexes,
+  3 documents / 14 chunks (all embedded) / 2 jobs.
+- Corpus re-confirmed: tag `5.2.9`, commit
+  `c14b756185c88f7f2eb745ff061f3c221fea9de7`, 643 `.txt` files.
+
+### Deployment defects discovered
+
+The project's first run of the gates outside Docker surfaced two real
+infrastructure defects, recorded with evidence and fixes in
+`DOCUMIND_HANDOFF_CONTEXT.md` §6: the lock resolves CUDA-capable torch on Linux
+(multi-GB downloads stalling container workflows), and `docker compose run`
+re-syncs dev dependencies on every invocation because the image is built
+`--no-dev`. A `.dockerignore` was added immediately; the torch pin is scoped as
+the first step of the next task.
+
+### Constraints carried forward
+
+- Do not build `run_eval.py` before the reviewed golden file exists; metrics
+  without ground truth are decoration.
+- Tune nothing on `heldout`; run `dev` for sanity, `heldout` once for the record.
+- Keep `eval/` free of framework and provider dependencies so the harness stays
+  runnable in CI without model weights or API keys.
+- The next authorised work is the CPU-only torch fix, full corpus ingestion,
+  golden-set drafting and review, `run_eval.py`, and the locked `vector` baseline.

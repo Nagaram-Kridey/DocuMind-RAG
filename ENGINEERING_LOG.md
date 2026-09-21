@@ -491,3 +491,125 @@ the concrete `User` type is imported under `TYPE_CHECKING` instead.
 
 Proceed only to the authorised Phase 1 golden-set construction, metrics, and
 baseline evaluation task.
+
+---
+
+# Session 008
+
+Phase: Phase 1 — Baseline
+Task: Golden-set schema hardening, retrieval metrics, and verification fixes
+Status: Complete
+
+## Objective
+
+Repair the red quality gate left by untracked in-progress `eval/` work, build the
+deterministic half of the Phase 1 evaluation harness (schema + metrics + tests),
+verify every done task against live evidence, and hand over a single context file
+a fresh model or reviewer can work from.
+
+## Why this task exists
+
+Session 007 ended with `eval/__init__.py` and `eval/golden_set.py` written but
+untracked, and `mypy` failing on them — so the repository did not satisfy its own
+definition of done. At the same time, the golden-set drafting (`build_golden_set.py`
+needs an LLM key and a human review pass) could not be honestly completed in one
+turn, but the schema, validation, and metric machinery could be finished
+deterministically and tested without any model call. Finally, running the gates
+for the first time outside Docker exposed environment and dependency defects that
+had to be fixed or documented before anyone could trust the claimed state.
+
+## Concepts
+
+Record parsing uses explicit `isinstance` checks so malformed JSONL fails with a
+precise message instead of being coerced into a plausible-looking question. The
+metrics use ground truth as `(source_path, anchor)` pairs: a chunk satisfies a
+gold source when both match, and an empty gold anchor is a path-level label
+matching any section of that file. Recall@k is true per-question source recall
+(matched gold sources / total gold sources, averaged); hit@k records whether any
+gold source surfaced; MRR@k uses the first relevant rank. Unanswerable questions
+have no ground truth, so they are excluded from retrieval metrics rather than
+scored as failures — retrieval quality and refusal behaviour are separate
+concerns measured by separate code.
+
+## Files Created
+
+- `eval/metrics.py`
+- `tests/test_metrics.py`
+- `tests/test_golden_set.py`
+- `.dockerignore`
+- `DOCUMIND_HANDOFF_CONTEXT.md`
+
+## Files Modified
+
+- `eval/golden_set.py` (typed parsing, `validate_golden_set`,
+  `summarise_golden_set`, `GoldenSetValidationError`)
+- `README.md` (quality-gate workflows, evaluation, deployment notes; stray line removed)
+- `DOCUMIND_CONTEXT.md` (Section 17 tracker and session log)
+- `KNOWLEDGEBASE.md` (Session 008 conceptual entry)
+
+## File Explanations
+
+`metrics.py` is import-light (only `apps.retrieval.types`, itself a plain
+dataclass module) so the metric math stays independent of Django and the database.
+`golden_set.py` keeps schema, I/O, validation, and reporting in one module so the
+acceptance check for a future `build_golden_set.py` is a single function call.
+`.dockerignore` keeps the pinned corpus (643 RST files plus its `.git` checkout),
+the host `.venv`, and `.env` out of every future build context. The README gains
+the two verified quality-gate workflows because the host/container hostname trap
+had no documented answer anywhere. `DOCUMIND_HANDOFF_CONTEXT.md` consolidates the
+verification report, every session's evidence, the production/deployment gap
+analysis, and the exact procedure list for the remaining Phase 1 work.
+
+## Architecture
+
+```text
+eval/golden_set.jsonl (future: 100 reviewed questions)
+        |
+        v
+load_golden_set -> validate_golden_set (fail fast on bad data)
+        |
+        v
+run_eval.py (future) -> retrieval.retrieve(mode) per question
+        |
+        v
+RetrievalOutcome(question_id, answerable, retrieved, gold_sources)
+        |
+        v
+compute_retrieval_metrics -> RetrievalMetrics.as_dict()
+        |
+        v
+eval/results/<mode>_<split>_<date>.json (committed evidence)
+```
+
+## Tests
+
+- Ruff passed.
+- MyPy passed with 50 source files checked (previously 3 errors in
+  `eval/golden_set.py`, now none; no blanket `type: ignore` introduced).
+- Pytest passed: 59 tests (27 pre-existing + 32 new: 22 golden-set, 10 metrics),
+  every expected metric value hand-computed in a comment above its assertion.
+- `makemigrations --check --dry-run` reported no changes (exit 0 with the host
+  `POSTGRES_HOST=localhost` override).
+- Live database still holds 3 documents / 14 chunks (all embedded) / 2 jobs;
+  corpus still pinned at `c14b756185c88f7f2eb745ff061f3c221fea9de7` with 643 files;
+  pgvector extension plus HNSW and GIN indexes confirmed.
+
+## Lessons
+
+Three lessons for production readiness. First, the shipped `.env` is a Docker
+contract, not a host contract: `POSTGRES_HOST=postgres` only resolves inside the
+Compose network, so host-side gates need a `localhost` override — now documented.
+Second, the lock resolves CUDA-capable torch on Linux while the Windows host
+installed the CPU build; the resulting multi-GB re-download inside
+`docker compose run web` stalled container-side testing entirely, so the next task
+must pin CPU-only torch before anything that touches containers. Third, the image
+is built `--no-dev` while `uv run` needs the dev group, which forces a re-sync on
+every `compose run` — test tooling should be baked into a dev image or profile
+once the lock is fixed.
+
+## Next Step
+
+Commit Session 008, then fix the CPU-only torch resolution (§6 defect A in
+`DOCUMIND_HANDOFF_CONTEXT.md`), run the full corpus ingestion, draft and manually
+review the 100-question golden set, implement `eval/run_eval.py`, and record the
+`vector` baseline on `dev` then `heldout`.
