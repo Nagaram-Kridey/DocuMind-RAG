@@ -64,3 +64,14 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REDIS_URL = os.environ["REDIS_URL"]
 APP_VERSION = "0.1.0"
+EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+DOCS_VERSION = os.environ.get("DOCS_VERSION", "5.2")
+
+REST_FRAMEWORK = {
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
+}
+
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "anthropic")
+LLM_MODEL = os.environ.get("LLM_MODEL", "")
+LLM_API_KEY = os.environ.get("LLM_API_KEY", "")

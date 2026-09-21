@@ -19,6 +19,10 @@ jobs:
       POSTGRES_HOST: localhost
       POSTGRES_PORT: "5432"
       REDIS_URL: redis://localhost:6379/0
+      EMBEDDING_MODEL: BAAI/bge-small-en-v1.5
+      DOCS_VERSION: "5.2"
+      HF_HOME: ${{ github.workspace }}/.cache/huggingface
+      TRANSFORMERS_OFFLINE: "0"
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -42,6 +46,10 @@ jobs:
         with:
           python-version: "3.11"
       - run: uv sync --all-groups --frozen
+      - uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.cache/huggingface
+          key: hf-${{ runner.os }}-bge-small-en-v1.5
       - run: uv run ruff check .
       - run: uv run mypy .
       - run: uv run pytest

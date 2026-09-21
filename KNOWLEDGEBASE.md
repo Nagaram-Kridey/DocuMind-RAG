@@ -402,3 +402,186 @@ actual `documind` database. It must run before the migration creates
 - Do not claim Postgres full-text search is BM25.
 - The next authorised work is batch embedding and an idempotent ingestion
   command; retrieval endpoints remain out of scope.
+
+---
+
+## 2026-09-20 — Phase 1, Task: Batch embedder and idempotent ingestion
+
+### Purpose
+
+This task fills the previously nullable `Chunk.embedding` column and turns the
+in-memory parser/chunker output into queryable database rows. It is the last
+Phase 1 step before the `vector` retrieval mode, and it establishes the
+provenance-preserving text that dense retrieval will later search.
+
+### The ingestion pipeline
+
+```text
+pinned RST files (data/django-5.2/docs)
+        |
+        v
+parse_rst_file -> ParsedDocument / ParsedSection
+        |
+        v
+chunk_document -> DocumentChunk (heading-prefixed text)
+        |
+        v
+embed_documents -> L2-normalised 384-dim vectors
+        |
+        v
+Chunk.objects.bulk_create  (recorded by one IngestionJob)
+```
+
+Every run — success or partial failure — writes an `IngestionJob` so the
+operation is auditable. A per-document exception is captured into the job's
+`error` field and the run is marked `failed` rather than silently succeeding.
+
+### The embedding contract
+
+`apps/documents/embedder.py` wraps a single `SentenceTransformer` instance in an
+`lru_cache`, so the model is loaded once per process and shared by ingestion and
+(query time) retrieval. That is important because model loading dominates the
+first request's latency and because reranking and embedding must not reload the
+same weights repeatedly.
+
+Two details keep the vectors compatible with the database:
+
+| Decision | Reason |
+| --- | --- |
+| `normalize_embeddings=True` | The HNSW index uses `vector_cosine_ops`; unit vectors make cosine and inner-product equivalent |
+| Query-only instruction prefix | BGE v1.5 documents recommend the retrieval prefix for queries, not documents; applying it to both would distort relevance |
+
+The encoder is described by a narrow `Encoder` protocol rather than the concrete
+class, which both narrows the surface DocuMind depends on and lets MyPy accept
+the third-party return value through a single `cast`.
+
+### Why ingestion is idempotent at two levels
+
+1. **Document level.** Each document stores a SHA-256 of its raw RST bytes. If
+   the bytes are unchanged, the whole document is skipped and its chunks are
+   never rewritten. This makes re-running `ingest_docs` cheap and safe.
+2. **Chunk level.** When a document *does* change, existing chunk embeddings are
+   indexed by `content_hash`. Any chunk whose text is byte-identical keeps its
+   previous vector, and only genuinely new or edited chunks are re-embedded.
+
+This second level matters for evaluation: as the chunker evolves, unchanged text
+does not pay the encoder cost again, and embedding stability is preserved.
+
+### Testability and dependency injection
+
+`ingest_corpus` accepts an `embed_texts` callable defaulting to
+`embed_documents`. Unit tests inject a deterministic fake that records its
+inputs, so the ingestion logic is exercised without downloading or running a
+model. This keeps tests fast and network-free while the production default still
+uses the real encoder.
+
+### A parser gap discovered by real data
+
+Running the pipeline over real corpus files exposed a defect that synthetic
+fixtures had hidden: a document whose only heading is its title produced no
+sections, and therefore no chunks. The parser now emits a title section for that
+introductory body. This is the intended benefit of exercising the full path
+rather than only unit fixtures.
+
+### Verification completed
+
+- Ruff and MyPy passed (37 source files, no type errors).
+- All 14 pytest tests passed, including idempotent re-ingestion, embedding
+  reuse on modification, and failure recording.
+- Ingestion of three real corpus files created 3 documents and 14 chunks, each
+  with a 384-dimension vector; a second run reported `skipped=3`.
+- Both runs recorded `done` ingestion jobs.
+
+### Constraints carried forward
+
+- All embeddings must remain 384 dimensions and L2-normalised.
+- Do not apply the BGE query prefix to document text.
+- Re-use embeddings by `content_hash`; do not drop and re-embed unchanged text.
+- The next authorised work is the `vector` retrieval mode and a plain-prompt
+  `/api/ask/` endpoint; hybrid search, reranking, and generation grounding
+  remain out of scope until their phases.
+
+---
+
+## 2026-09-20 — Phase 1, Task: Vector retrieval mode and /api/ask/
+
+### Purpose
+
+This task converts the embedded chunk store into the first working query path.
+It establishes the baseline retrieval mode and freezes the `/api/ask/` contract
+that later phases and the evaluation harness depend on.
+
+### The query path
+
+```text
+POST /api/ask/  {question, mode, top_k}
+        |
+        v
+AskRequestSerializer  -> validation (length, mode enum, top_k 1..10)
+        |
+        v
+answer_question
+        |-- embed_query(question)            -> 384-dim query vector
+        |-- retrieve(mode)                    -> ranked RetrievedChunk list
+        |-- build_context                     -> numbered [chunk_id] blocks
+        |-- generate_answer (plain prompt)    -> LLM text + usage
+        |-- QueryLog.objects.create           -> audit record
+        v
+{answer, refused, citations, mode, latency_ms}
+```
+
+### Why cosine distance is the ordering signal
+
+Chunk embeddings are L2-normalised and the column is indexed with
+`vector_cosine_ops`. `CosineDistance` returns `1 - cosine_similarity`, so an
+ascending `ORDER BY distance` yields the most similar chunks first and lets the
+HNSW index do the ordering. The retrieved score exposed to clients is
+`1 - distance`, i.e. the cosine similarity.
+
+### Mode dispatch is honest, not silently degraded
+
+Only `vector` is implemented in Phase 1, but `hybrid` and `hybrid_rerank` are
+valid modes in the API. `service.retrieve` raises `UnsupportedModeError` for
+valid-but-unimplemented modes and `AskView` maps that to HTTP 400. Returning
+baseline results for an unimplemented mode would corrupt the evaluation, so it
+is refused instead.
+
+### The provider-agnostic LLM boundary
+
+Generation depends only on the `LLMClient` protocol and the `LLMResponse` /
+`LLMUsage` dataclasses. Provider SDKs are imported lazily inside the concrete
+clients, so importing the module never needs an SDK or key, and switching
+providers is a settings change. Because tests inject a fake client, no paid API
+is ever contacted in the suite.
+
+### Plain prompt now, grounded prompt later
+
+Phase 1 intentionally uses a plain prompt that answers only from the provided
+context. The citation-grounded contract, refusal handling, and citation
+validation belong to Phase 3. Isolating the prompt in `build_plain_prompt` means
+that upgrade is one function, and the two prompts can be compared directly on
+faithfulness as the results table requires.
+
+### Audit and timing
+
+Each request records `embed`, `retrieve`, `rerank`, `llm`, and `total`
+milliseconds in `QueryLog.latency_ms` and in the response. `rerank` is present as
+zero so the response shape never changes when Phase 3 adds reranking. Query
+logging is wrapped so an audit failure can never break a user response.
+
+### Verification completed
+
+- Ruff and MyPy passed (45 source files, no type errors).
+- All 27 pytest tests passed (13 new retrieval/ask tests).
+- `makemigrations --check --dry-run` reported no changes.
+- A real query returned 3 hits with a top similarity of 0.6826 and a genuine
+  heading path, proving the full embed → retrieve path against real data.
+
+### Constraints carried forward
+
+- Keep the `/api/ask/` request and response shape stable for the evaluation
+  harness.
+- Never return baseline results for an unimplemented mode.
+- Keep the LLM behind the `LLMClient` protocol; never call a provider in tests.
+- The next authorised work is the 100-question golden set, `metrics.py`, and
+  `run_eval.py` to record the baseline vector numbers.

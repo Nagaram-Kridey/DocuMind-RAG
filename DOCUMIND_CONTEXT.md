@@ -356,8 +356,8 @@ THROTTLE_ANON=10/min
 - [x] Phase 1: docs fetched and pinned
 - [x] Phase 1: parser + chunker (+ tests)
 - [x] Phase 1: models, migrations, HNSW index
-- [ ] Phase 1: embedder + ingestion command
-- [ ] Phase 1: `vector` mode + `/api/ask/` (plain prompt)
+- [x] Phase 1: embedder + ingestion command
+- [x] Phase 1: `vector` mode + `/api/ask/` (plain prompt)
 - [ ] Phase 1: golden set built, reviewed, split
 - [ ] Phase 1: metrics + `run_eval.py`; baseline saved
 - [ ] Phase 2: full-text search + RRF + `hybrid` mode; results saved
@@ -369,6 +369,8 @@ THROTTLE_ANON=10/min
 - [ ] Stretch: Streamlit demo / AWS deployment / Kubernetes manifests
 
 **Session log** (append newest first; format `YYYY-MM-DD: what was done | next step | blockers`):
+- 2026-09-20: Added `vector` retrieval mode, provider-agnostic `LLMClient`, and `POST /api/ask/` with plain prompt, citations, timings, and QueryLog audit; real query returned 3 hits (top similarity 0.68) | next: Phase 1 golden set + metrics + baseline eval | blockers: none
+- 2026-09-20: Added cached bge-small-en-v1.5 embedder and an idempotent ingestion command (document-level skip, chunk-level embedding reuse); real run created 3 docs / 14 chunks with 384-dim vectors and a repeat run skipped unchanged files | next: Phase 1 `vector` mode + `/api/ask/` plain prompt | blockers: none
 - 2026-09-20: Added persistence models, migrations, pgvector extension, HNSW and GIN indexes; verified against PostgreSQL | next: Phase 1 embedder + ingestion command | blockers: none
 - 2026-09-20: Built and verified hand-written Django RST parser and heading-aware chunker | next: Phase 1 models, migrations, HNSW index | blockers: none
 - 2026-09-20: Pinned Django documentation corpus to tag 5.2.9, commit c14b756185c88f7f2eb745ff061f3c221fea9de7; added reproducible sparse-fetch script | next: Phase 1 parser + chunker | blockers: none

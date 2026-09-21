@@ -325,3 +325,169 @@ before a vector column is created.
 ## Next Step
 
 Proceed only to the authorised Phase 1 embedder and ingestion-command task.
+
+---
+
+# Session 006
+
+Phase: Phase 1 — Baseline
+Task: Batch embedder and idempotent ingestion command
+Status: Complete
+
+## Objective
+
+Populate the persisted chunk table with L2-normalised `bge-small-en-v1.5`
+embeddings through a single, idempotent, testable ingestion pipeline.
+
+## Why this task exists
+
+Chunks exist without vectors after the persistence task. Dense retrieval,
+the baseline evaluation, and every later mode require that each chunk carry a
+384-dimension embedding produced by the pinned local model.
+
+## Concepts
+
+The embedder loads one cached `SentenceTransformer` per process and normalises
+output so cosine distance matches the `vector_cosine_ops` HNSW index. BGE v1.5
+adds a retrieval instruction prefix to queries only, never to documents.
+Ingestion is idempotent at two levels: unchanged source files are skipped, and,
+when a document changes, unchanged chunks keep their existing vector by matching
+`content_hash`, so the encoder only runs on genuinely new text.
+
+## Files Created
+
+- `apps/documents/embedder.py`
+- `apps/documents/ingestion.py`
+- `apps/documents/management/__init__.py`
+- `apps/documents/management/commands/__init__.py`
+- `apps/documents/management/commands/ingest_docs.py`
+- `tests/test_ingestion.py`
+
+## File Explanations
+
+`embedder.py` exposes `embed_documents`, `embed_query`, and a cached
+`get_encoder`; it validates the encoder matrix shape before returning Python
+lists. `ingestion.py` holds the deterministic pipeline (discover, parse, chunk,
+embed, persist) with an injectable embedder so it can be tested without loading
+a model, and records an `IngestionJob` lifecycle. `ingest_docs.py` is a thin
+management command exposing `--corpus-root`, `--docs-version`, and `--limit`.
+`test_ingestion.py` covers the vector-shape validator, idempotent re-ingestion,
+embedding reuse on modification, and failure recording.
+
+## Architecture
+
+`data/django-5.2/docs` → `parse_rst_file` → `chunk_document` → `embed_documents`
+→ `Chunk.objects.bulk_create`, wrapped in an `IngestionJob`. A document-level
+`content_hash` gates rework; a chunk-level `content_hash` gates re-embedding.
+
+## Tests
+
+- Ruff passed.
+- MyPy passed with 37 source files checked.
+- Pytest passed (14 tests, including five new ingestion tests).
+- `makemigrations --check --dry-run` reported no pending changes.
+- Real ingestion of three corpus files created 3 documents and 14 chunks with
+  384-dimension vectors.
+- A second real ingestion reported `skipped=3`, confirming idempotency.
+- Ingestion jobs were recorded with status `done`.
+
+## Lessons
+
+Title-only RST documents have no subheadings, so the parser initially emitted no
+sections for them. The parser now treats a title's introductory body as its own
+section. This surfaced only because ingestion exercised the full corpus path
+rather than synthetic multi-heading fixtures.
+
+## Next Step
+
+Proceed only to the authorised Phase 1 `vector` retrieval mode and `/api/ask/`
+endpoint with a plain prompt.
+
+---
+
+# Session 007
+
+Phase: Phase 1 — Baseline
+Task: Vector retrieval mode and plain-prompt /api/ask/ endpoint
+Status: Complete
+
+## Objective
+
+Turn the embedded chunk store into a working question-answering API: a dense
+`vector` retrieval mode, a provider-agnostic LLM client, and a
+`POST /api/ask/` endpoint that returns an answer with citations and timings.
+
+## Why this task exists
+
+This is the first end-to-end query path and the baseline against which hybrid
+and reranked retrieval will be compared. It also locks the `/api/ask/` request
+and response contract used by every later phase and by the evaluation harness.
+
+## Concepts
+
+Dense retrieval orders chunks by pgvector cosine distance, which returns
+similarity-ordered results directly from the HNSW index. The LLM is hidden
+behind an `LLMClient` protocol so tests never touch a paid provider and the
+provider can be swapped by settings alone. The plain prompt is isolated so the
+Phase 3 citation-grounded contract replaces exactly one function.
+
+## Files Created
+
+- `apps/retrieval/types.py`
+- `apps/retrieval/vector.py`
+- `apps/retrieval/service.py`
+- `apps/qa/llm_client.py`
+- `apps/qa/generation.py`
+- `apps/qa/serializers.py`
+- `tests/test_retrieval_vector.py`
+- `tests/test_ask.py`
+
+## File Explanations
+
+`types.py` defines the immutable `RetrievedChunk` with citation and audit
+projections. `vector.py` runs the annotated cosine-distance query and converts
+distance to similarity. `service.py` dispatches by mode and builds the numbered
+context; unimplemented modes raise rather than silently returning baseline
+results. `llm_client.py` defines the client protocol, response/usage dataclasses,
+lazy Anthropic/OpenAI clients, and the plain prompt builder. `generation.py`
+embeds once, retrieves, generates, times each stage, and writes a `QueryLog`.
+`serializers.py` validates requests and documents the response shape.
+
+## Architecture
+
+```text
+POST /api/ask/ (AskView)
+  -> AskRequestSerializer (length, mode enum, top_k range)
+  -> generation.answer_question
+       -> embed_query
+       -> retrieval.retrieve(mode=vector)
+       -> build_context
+       -> llm_client.generate_answer (plain prompt)
+       -> QueryLog.objects.create
+  -> {answer, refused, citations, mode, latency_ms}
+```
+
+`AskView` maps `UnsupportedModeError` to HTTP 400 and `LLMConfigurationError`
+to HTTP 503, so misconfiguration is explicit rather than a 500.
+
+## Tests
+
+- Ruff passed.
+- MyPy passed with 45 source files checked.
+- Pytest passed (27 tests, including 13 new retrieval/ask tests).
+- `makemigrations --check --dry-run` reported no changes.
+- A real query against the ingested corpus returned 3 hits, top score 0.6826,
+  with a genuine heading path.
+
+## Lessons
+
+Mypy's Django plugin crashed while analysing third-party `transformers` code;
+the fix was to list the ML/LLM packages in the mypy overrides with
+`follow_imports = "skip"` so only DocuMind code is type-checked. Also, annotating
+the query-log owner with a custom protocol was rejected by the Django stubs, so
+the concrete `User` type is imported under `TYPE_CHECKING` instead.
+
+## Next Step
+
+Proceed only to the authorised Phase 1 golden-set construction, metrics, and
+baseline evaluation task.
