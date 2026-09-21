@@ -561,6 +561,47 @@ additionally paid the one-time in-container bge-small model download.
 
 ### Operational lessons
 
+---
+
+## 2026-09-21 — Phase 1, Task: Full corpus ingestion and live LLM validation
+
+### Purpose
+
+The QA pipeline had only been proven against 14 smoke chunks. Evaluation
+numbers require the real index, so the entire pinned corpus (643 RST files)
+was ingested and the LLM path re-validated over it.
+
+### What the index now holds
+
+| Measure | Value |
+| --- | --- |
+| Documents | 640 (this run) + 3 smoke docs = 643 |
+| Chunks | 6,487 |
+| Embedded chunks | 6,487 / 6,487 (100%) |
+| Job state | `done`, no error, ~13 minutes |
+
+The chunk count exceeded the 1,000-3,000 planning estimate. The honest
+measured number is what the README must carry.
+
+### Live validation over the full index
+
+- A raw-SQL question returned a correct answer with a code example, cited to
+  `topics/db/sql/` sections.
+- A select_related versus prefetch_related question returned an accurate
+  technical answer cited to `ref/models/querysets/`, top similarity 0.86.
+- An off-corpus question (weather) was declined rather than answered — the
+  plain prompt's grounding instruction held.
+
+### Constraints carried forward
+
+- The `refused` boolean still maps only to the Phase 3 `INSUFFICIENT_CONTEXT`
+  contract; soft refusals under the plain prompt are not flagged yet.
+- Any re-ingestion must remain idempotent via content hashes; do not wipe the
+  index between retrieval experiments without recording it.
+- Next authorised work: golden-set drafting (Step 3 of the handoff), manual
+  review of at least 40 questions, then `run_eval.py` and the baseline.
+
+
 An interrupted container dependency sync can corrupt a package so subtly that
 the failure surfaces as an unrelated circular import; deleting the
 `web_venv` volume and recreating the container forces a clean sync. On

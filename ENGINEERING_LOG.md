@@ -765,6 +765,75 @@ required.
 
 ## Tests
 
+
+---
+
+# Session 011
+
+Phase: Phase 1 — Baseline
+Task: Full corpus ingestion and live LLM validation
+Status: Complete
+
+## Objective
+
+Ingest the entire pinned Django 5.2 corpus (643 RST files), verify every
+chunk is embedded, recheck all service connections, and validate the LLM
+end-to-end over the full index with on-corpus and off-corpus questions.
+
+## Why this task exists
+
+Session 010 proved the pipeline against 14 smoke chunks only. The evaluation
+work that follows needs the real index; the baseline numbers would be
+meaningless without it.
+
+## Concepts
+
+The detached `docker compose exec -d` run keeps ingestion alive across host
+shell sessions while writing a log to the bind-mounted repository. The job
+row's `doc_count`/`chunk_count` update at completion; live progress is
+observable through the document/chunk tables.
+
+## Files Created
+
+None. Ingestion and verification only; documentation updated.
+
+## File Explanations
+
+`documents_ingestionjob` row 4 recorded `done` with `doc_count=640`,
+`chunk_count=6487`. The chunk table holds 6,487 rows with 6,487 non-null
+384-dimensional embeddings across 643 distinct documents (640 ingested this
+run plus the 3 pre-existing smoke documents, idempotently skipped where
+unchanged).
+
+## Architecture
+
+RST corpus (643 files) → parser → chunker → batch bge-small embeddings →
+PostgreSQL (HNSW + GIN). The live QA path is unchanged: embed query → HNSW
+top-k → Ollama Cloud generation → citations → QueryLog.
+
+## Tests
+
+- Ingestion job 4: `done`, no error, 640 docs / 6487 chunks in ~13 minutes.
+- `SELECT count(embedding)` equals chunk count (6487/6487).
+- Health endpoint 200; Redis PONG; PostgreSQL reachable.
+- Live LLM checks: raw-SQL question answered with correct citations;
+  select_related/prefetch_related answered accurately (top score 0.86,
+  cited `ref/models/querysets`); an off-corpus weather question was
+  correctly declined instead of hallucinated.
+- Ruff and MyPy clean; 61 pytest tests passing.
+
+## Lessons
+
+Chunk counts exceeded the 1,000-3,000 planning estimate; the honest number
+(6,487) is recorded and must be used in the README rather than the estimate.
+The `refused` flag remains Phase 3 contract (exact `INSUFFICIENT_CONTEXT`
+marker); the plain prompt's soft refusal still behaved correctly.
+
+## Next Step
+
+Proceed to the golden-set drafting and review, then `run_eval.py` and the
+vector baseline.
+
 - Ruff passed. MyPy passed (50 files). Pytest passed (61 tests).
 - Live: health 200; two real questions answered with citations and scores.
 - QueryLog rows 1-2 recorded `mode=vector`, `model=gpt-oss:20b`, token

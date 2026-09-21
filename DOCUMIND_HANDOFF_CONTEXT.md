@@ -514,19 +514,14 @@ every eval result — cloud models can be retired. A corrupted container venv
 `web_venv` volume and recreating `web`. **Start the remaining work at
 Step 2 (full corpus ingestion).**
 
-### Step 2 — Full corpus ingestion
+### Step 2 — Full corpus ingestion: DONE (Session 011, verified this turn)
 
-Run the real ingestion against the pinned corpus:
-
-```sh
-uv run --env-file .env python manage.py ingest_docs
-```
-
-Expect roughly 1,000–3,000 chunks (locked target). Confirm:
-`documents_document` ≈ number of RST files with content, every chunk has
-`embedding IS NOT NULL`, and the `documents_ingestionjob` row is `done`.
-This run loads the BGE model on CPU — it is slow (tens of minutes), single-shot,
-and auditable via `IngestionJob`. Do not start evals until it completes.
+Job 4: `done`, 640 docs / 6,487 chunks, 6,487/6,487 embeddings non-null,
+~13 minutes inside the `web` container. All connections rechecked (health
+200, Redis PONG). Live LLM validation over the full index: correct grounded
+answers with citations for on-corpus questions (top similarity 0.86) and a
+correct decline for an off-corpus question. **Start the remaining work at
+Step 3 (`eval/build_golden_set.py`).**
 
 ### Step 3 — `eval/build_golden_set.py` (LLM-assisted drafting script)
 
