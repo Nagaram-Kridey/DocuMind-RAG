@@ -523,6 +523,17 @@ answers with citations for on-corpus questions (top similarity 0.86) and a
 correct decline for an off-corpus question. **Start the remaining work at
 Step 3 (`eval/build_golden_set.py`).**
 
+### Repository state as of 2026-09-21 (post-push)
+
+`origin/main` = **`35409c6`** (`v0.1.0 | Session 011: full corpus ingestion (6487
+chunks), live LLM validation, connections rechecked`), working tree clean. Recent
+history: `2271eeb` (Session 010: Ollama Cloud provider, live end-to-end RAG),
+`4c45851` (Session 009: CPU-only torch), `04532af` (Session 008: golden-set
+schema + metrics). Live stack verified after push: 6,487/6,487 chunks embedded,
+health 200, Redis PONG, Ollama Cloud (`gpt-oss:20b`) answering with citations,
+QueryLog audit rows written. Next worker starts at **Step 3 —
+`eval/build_golden_set.py`**; the LLM provider it needs now exists.
+
 ### Step 3 — `eval/build_golden_set.py` (LLM-assisted drafting script)
 
 Per `DOCUMIND_CONTEXT.md` §9: sample chunks, draft candidate questions with the
@@ -599,12 +610,12 @@ is required whenever Django settings or tools need secrets/DB config.
 | --- | --- | --- |
 | Lint | `uv run --env-file .env ruff check .` | ✅ PASS |
 | Types | `uv run --env-file .env mypy .` | ✅ PASS, 50 files |
-| Tests (host) | `$env:POSTGRES_HOST='localhost'; uv run --env-file .env pytest` (PowerShell) or `POSTGRES_HOST=localhost uv run --env-file .env pytest` (bash) | ✅ 59 passed |
+| Tests (host) | `$env:POSTGRES_HOST='localhost'; uv run --env-file .env pytest` (PowerShell) or `POSTGRES_HOST=localhost uv run --env-file .env pytest` (bash) | ✅ 61 passed (Session 010) |
 | Tests (container) | `docker compose run --rm -T --no-deps web uv run pytest -q` | ❌ stalled — see §6 Defect B; use the host form until fixed |
 | Migration drift check | `uv run --env-file .env python manage.py makemigrations --check --dry-run` (same `POSTGRES_HOST` override on host) | ✅ "No changes detected" |
 | Fetch corpus | `sh scripts/fetch_docs.sh` | ✅ idempotent, verified commit |
 | Ingest (smoke) | `uv run --env-file .env python manage.py ingest_docs --limit 3` | ✅ historically; re-verify after any lock change |
-| Ingest (full) | `uv run --env-file .env python manage.py ingest_docs` | ⚠️ not yet run — Step 2 of §7 |
+| Ingest (full) | `uv run --env-file .env python manage.py ingest_docs` (run detached in `web`: `docker compose exec -d -T web sh -c "uv run python manage.py ingest_docs"`) | ✅ DONE — 640 docs / 6,487 chunks, 100% embedded, job `done` in ~13 min (Session 011) |
 | Validate a golden file | `python -c "from pathlib import Path; from eval.golden_set import …"` (see §7 Step 4) | ✅ logic covered by tests, no golden file yet |
 | Live DB row counts | `docker compose exec -T postgres psql -U documind -d documind -c "SELECT …"` | ✅ see §3.3 |
 
