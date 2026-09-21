@@ -75,3 +75,5 @@ REST_FRAMEWORK = {
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "anthropic")
 LLM_MODEL = os.environ.get("LLM_MODEL", "")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
+# Optional override of the provider endpoint (e.g. a local Ollama server).
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "")

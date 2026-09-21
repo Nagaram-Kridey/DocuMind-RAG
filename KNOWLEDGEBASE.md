@@ -515,6 +515,66 @@ that later phases and the evaluation harness depend on.
 
 ```text
 POST /api/ask/  {question, mode, top_k}
+
+---
+
+## 2026-09-21 — Phase 1, Task: Ollama Cloud provider and live end-to-end RAG
+
+### Purpose
+
+The retrieval pipeline was complete and tested, but every `/api/ask/` call
+returned HTTP 503 because no LLM was configured. This task adds the missing
+generation provider and proves the whole chain — retrieval, generation,
+citations, audit logging — against the live service.
+
+### Provider decision
+
+A local 30B-class model was evaluated and rejected: the machine has 16 GB RAM
+and no NVIDIA GPU, and a 30B model needs roughly 25 GB just for weights. The
+selected path is **Ollama Cloud**: models run remotely behind an
+OpenAI-compatible API, so the existing `OpenAILLMClient` works unchanged with
+only a different base URL. The configured key is an Ollama API key; a
+`/v1/models` probe confirmed reachability and listed the available models.
+`gpt-oss:20b` was chosen for grounded QA quality per unit cost; the exact
+model name is recorded with every eval result because cloud models can be
+retired.
+
+### What changed
+
+- `apps/qa/llm_client.py` registers an `ollama` provider that routes through
+  `OpenAILLMClient` with `settings.LLM_BASE_URL` falling back to
+  `https://ollama.com/v1`. Anthropic and OpenAI behaviour is unchanged, and a
+  local Ollama server remains available by setting `LLM_BASE_URL`.
+- `config/settings/base.py` adds the optional `LLM_BASE_URL` setting.
+- `.env.example` and the local `.env` set `LLM_PROVIDER=ollama` and
+  `LLM_MODEL=gpt-oss:20b`.
+- Two factory tests cover the cloud default and the local override.
+
+### Verified end-to-end behaviour
+
+With `web` recreated on a clean virtual-environment volume, the live API
+returned real grounded answers with citations and similarity scores for two
+real questions, and PostgreSQL recorded both `QueryLog` rows with
+`model=gpt-oss:20b` and token accounting. Warm request latency measured
+embed 18 ms, retrieve 16 ms, LLM ~3.5 s, total ~3.6 s; the first request
+additionally paid the one-time in-container bge-small model download.
+
+### Operational lessons
+
+An interrupted container dependency sync can corrupt a package so subtly that
+the failure surfaces as an unrelated circular import; deleting the
+`web_venv` volume and recreating the container forces a clean sync. On
+Windows, JSON request bodies must be written to a file without a UTF-8 BOM
+and passed via `--data-binary @file`, or PowerShell quoting mangles them.
+
+### Constraints carried forward
+
+- Record `LLM_MODEL` with every evaluation result; cloud models can be
+  retired by the provider.
+- The API key stays in `.env` only and must never be committed.
+- Answers currently draw from only 3 indexed documents; full-corpus
+  ingestion is the next authorised task before any evaluation numbers.
+
         |
         v
 AskRequestSerializer  -> validation (length, mode enum, top_k 1..10)

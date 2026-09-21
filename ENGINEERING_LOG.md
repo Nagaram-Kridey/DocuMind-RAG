@@ -703,3 +703,83 @@ apply.
 Proceed to handoff Step 2: the full corpus ingestion against the pinned Django
 5.2 checkout, verifying chunk counts, non-null embeddings, and a `done`
 `IngestionJob` before any eval work begins.
+
+---
+
+# Session 010
+
+Phase: Phase 1 — Baseline
+Task: Ollama Cloud LLM provider and live end-to-end RAG
+Status: Complete
+
+## Objective
+
+Remove the last user-facing blocker (missing LLM configuration) by adding an
+`ollama` provider that reaches Ollama-hosted models through their
+OpenAI-compatible cloud endpoint, then prove the full `/api/ask/` pipeline
+live: retrieval over indexed chunks, remote generation, citations, and query
+logging.
+
+## Why this task exists
+
+The API previously answered every question with HTTP 503 because no provider
+credentials were configured. A local 30B model was rejected on hardware
+grounds (16 GB RAM, CPU-only), so the chosen path is Ollama Cloud: the same
+provider surface with no local RAM cost, no model download, and negligible
+eval cost. The provider seam keeps Anthropic/OpenAI unchanged and local
+Ollama reachable through `LLM_BASE_URL`.
+
+## Concepts
+
+Ollama exposes an OpenAI-compatible API, so the existing `OpenAILLMClient`
+serves both `openai` and `ollama` providers; only the base URL differs. The
+key-format check identified the configured key as an Ollama key rather than an
+Anthropic key. A curl probe of `https://ollama.com/v1/models` listed the
+available cloud models, and `gpt-oss:20b` was selected as the best
+grounded-QA quality-per-cost choice.
+
+## Files Created
+
+None. Four files changed: `apps/qa/llm_client.py`,
+`config/settings/base.py`, `.env.example`, and `tests/test_ask.py`.
+
+## File Explanations
+
+`llm_client.py` registers the `ollama` provider in the factory map, routing
+through `OpenAILLMClient` with `settings.LLM_BASE_URL` or the
+`OLLAMA_CLOUD_BASE_URL` default. `base.py` adds the optional `LLM_BASE_URL`
+setting. `.env`/`.env.example` set `LLM_PROVIDER=ollama` and
+`LLM_MODEL=gpt-oss:20b`. Two new tests prove the factory returns the cloud
+client and honours a local-server override.
+
+## Architecture
+
+```text
+POST /api/ask/ -> embed (bge-small, cached) -> vector top-k (HNSW)
+              -> generation via Ollama Cloud (gpt-oss:20b)
+              -> citations + QueryLog row
+```
+
+The container reaches `https://ollama.com` directly, so no host networking is
+required.
+
+## Tests
+
+- Ruff passed. MyPy passed (50 files). Pytest passed (61 tests).
+- Live: health 200; two real questions answered with citations and scores.
+- QueryLog rows 1-2 recorded `mode=vector`, `model=gpt-oss:20b`, token
+  accounting (625/234 and 436/319).
+- Warm latency: embed 18 ms, retrieve 16 ms, LLM ~3.5 s, total ~3.6 s.
+
+## Lessons
+
+An interrupted `uv sync` inside a container can leave a silently corrupted
+package (a truncated `transformers` produced a misleading circular-import
+error). Deleting the `web_venv` volume and recreating the container forces a
+clean, uninterrupted sync. Also: Windows `curl` sends PowerShell-mangled JSON
+unless the payload is written to a file without a UTF-8 BOM.
+
+## Next Step
+
+Proceed to the full-corpus ingestion, then the golden-set build task.
+

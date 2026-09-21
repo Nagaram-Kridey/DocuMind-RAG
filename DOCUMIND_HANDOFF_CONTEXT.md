@@ -501,7 +501,17 @@ git commit -m "v0.1.0 | Session 008: golden-set schema, retrieval metrics, verif
 
 `pyproject.toml` declares `torch>=2.2,<3.0` with the PyTorch CPU index;
 `uv.lock` has zero CUDA/nvidia/triton entries; gates re-verified green;
-embedding smoke confirmed 384 dims and was cleaned. **Start the remaining work at
+embedding smoke confirmed 384 dims and was cleaned.
+
+### Step 1b — LLM provider: DONE (Session 010, verified this turn)
+
+The `ollama` provider routes through the OpenAI SDK at `https://ollama.com/v1`
+(Ollama Cloud; key in `.env`, `LLM_MODEL=gpt-oss:20b`). Live `/api/ask/`
+verified end-to-end: citations, similarity scores, QueryLog rows 1–2, warm
+latency embed 18 ms / retrieve 16 ms / LLM ~3.5 s. Record `LLM_MODEL` with
+every eval result — cloud models can be retired. A corrupted container venv
+(misleading `transformers` circular import) was fixed by deleting the
+`web_venv` volume and recreating `web`. **Start the remaining work at
 Step 2 (full corpus ingestion).**
 
 ### Step 2 — Full corpus ingestion

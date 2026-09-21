@@ -10,10 +10,12 @@ from rest_framework.test import APIClient
 from apps.documents.ingestion import ingest_corpus
 from apps.qa.generation import answer_question
 from apps.qa.llm_client import (
+    OLLAMA_CLOUD_BASE_URL,
     LLMClient,
     LLMConfigurationError,
     LLMResponse,
     LLMUsage,
+    OpenAILLMClient,
     build_plain_prompt,
     get_llm_client,
 )
@@ -82,6 +84,33 @@ def test_get_llm_client_rejects_unknown_provider() -> None:
         settings.LLM_API_KEY = "k"
         with pytest.raises(LLMConfigurationError):
             get_llm_client()
+
+
+def test_get_llm_client_builds_ollama_cloud_client() -> None:
+    """The ollama provider routes through the OpenAI SDK at the cloud endpoint."""
+    with patch("apps.qa.llm_client.settings") as settings:
+        settings.LLM_PROVIDER = "ollama"
+        settings.LLM_MODEL = "gpt-oss:20b"
+        settings.LLM_API_KEY = "k"
+        settings.LLM_BASE_URL = ""
+        client = get_llm_client()
+
+    assert isinstance(client, OpenAILLMClient)
+    assert client._base_url == OLLAMA_CLOUD_BASE_URL  # noqa: SLF001
+    assert client._model == "gpt-oss:20b"  # noqa: SLF001
+
+
+def test_get_llm_client_ollama_honours_base_url_override() -> None:
+    """A configured LLM_BASE_URL overrides the Ollama cloud default."""
+    with patch("apps.qa.llm_client.settings") as settings:
+        settings.LLM_PROVIDER = "ollama"
+        settings.LLM_MODEL = "qwen3:8b"
+        settings.LLM_API_KEY = "k"
+        settings.LLM_BASE_URL = "http://localhost:11434/v1"
+        client = get_llm_client()
+
+    assert isinstance(client, OpenAILLMClient)
+    assert client._base_url == "http://localhost:11434/v1"  # noqa: SLF001
 
 
 @pytest.mark.django_db

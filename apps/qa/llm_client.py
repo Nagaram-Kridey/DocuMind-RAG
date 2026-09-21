@@ -15,6 +15,10 @@ from django.conf import settings
 
 ANTHROPIC_PROVIDER = "anthropic"
 OPENAI_PROVIDER = "openai"
+OLLAMA_PROVIDER = "ollama"
+
+# Direct cloud access for Ollama-hosted models (no local server required).
+OLLAMA_CLOUD_BASE_URL = "https://ollama.com/v1"
 
 
 class LLMConfigurationError(RuntimeError):
@@ -80,16 +84,17 @@ class AnthropicLLMClient:
 class OpenAILLMClient:
     """Generate text with the OpenAI Chat Completions API."""
 
-    def __init__(self, model: str, api_key: str) -> None:
+    def __init__(self, model: str, api_key: str, base_url: str | None = None) -> None:
         """Store configuration; the SDK is imported on first use."""
         self._model = model
         self._api_key = api_key
+        self._base_url = base_url
 
     def generate(self, system: str, user: str) -> LLMResponse:
         """Return a single completion from the configured model."""
         import openai
 
-        client = openai.OpenAI(api_key=self._api_key)
+        client = openai.OpenAI(api_key=self._api_key, base_url=self._base_url)
         completion = client.chat.completions.create(
             model=self._model,
             temperature=0,
@@ -113,6 +118,9 @@ class OpenAILLMClient:
 _PROVIDER_FACTORIES: dict[str, Callable[[str, str], LLMClient]] = {
     ANTHROPIC_PROVIDER: AnthropicLLMClient,
     OPENAI_PROVIDER: OpenAILLMClient,
+    OLLAMA_PROVIDER: lambda model, api_key: OpenAILLMClient(
+        model, api_key, base_url=settings.LLM_BASE_URL or OLLAMA_CLOUD_BASE_URL
+    ),
 }
 
 
