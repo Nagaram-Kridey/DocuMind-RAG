@@ -599,6 +599,38 @@ evidence behind every future resume claim.
 chunking parameters (that would invalidate heldout comparability — decide
 deliberately or not at all), or tune prompts against `heldout`.
 
+### Step 7 — Streamlit demo UI (planned; scheduling decided below)
+
+A simple Streamlit landing page was requested by the owner (2026-09-21) so the
+API can be tested directly from a browser instead of raw `curl`. It is
+**planned, not yet built**, and deliberately scheduled *after* the baseline
+eval so it never delays the phase's acceptance criteria.
+
+**Scope (keep it small — a test surface, not a product):**
+
+- New top-level `ui/app.py` (Streamlit is already a resume skill; no new heavy
+  framework). Run with `uv run --env-file .env streamlit run ui/app.py`; the
+  app talks to the live API at `API_BASE_URL` (env, default
+  `http://localhost:8000`), never to the database directly.
+- One text box + mode selector (`vector` only until Phase 2/3 modes exist,
+  then auto-list available modes) + "Ask" button.
+- Renders: answer, refused flag, citations (title / heading path / URL /
+  score), and the `latency_ms` breakdown — mirroring the `/api/ask/` response
+  shape exactly so the UI stays a thin client.
+- A health banner driven by `GET /api/health/` (show DB/Redis state).
+- No auth in v1: for JWT-enabled Phase 4, add a sidebar token field that
+  attaches `Authorization: Bearer …` to requests.
+- Tests: the UI calls the API over HTTP, so cover it with a thin `requests`
+  wrapper module (`ui/client.py`) unit-tested against a mocked transport;
+  Streamlit rendering itself stays untested (thin layer).
+
+**Sequencing:** implement as `Phase 4` work (with JWT/throttling) or
+immediately after Step 5 baseline results if the owner wants browser testing
+earlier — it is a one-session task, roughly: `ui/client.py` + tests →
+`ui/app.py` → README "Demo UI" section → optional `streamlit` service in
+`docker-compose.yml`. Do not let it displace `run_eval.py` or the manual
+golden-set review if time conflicts.
+
 ---
 
 ## 8. Verified command reference

@@ -267,7 +267,8 @@ Input validation: max question length (e.g., 500 chars), `mode` in enum, `top_k`
 - **Done when:** three-way table populated (final numbers on `heldout`); faithfulness compared for grounded vs plain prompt.
 
 ### Phase 4: Harden and ship (week 4)
-- JWT auth, throttling, Celery ingestion, drf-spectacular docs, structlog, Locust test, CI eval gate, coverage ≥ 85%, README with diagram and results, optional Streamlit demo.
+- JWT auth, throttling, Celery ingestion, drf-spectacular docs, structlog, Locust test, CI eval gate, coverage ≥ 85%, README with diagram and results.
+- **Streamlit demo UI (owner-requested 2026-09-21):** a simple browser landing page so the API can be tested directly. Thin client over `POST /api/ask/` + `GET /api/health/` (question box, mode selector, answer with citations and latency breakdown; `ui/app.py` + `ui/client.py` with tests for the API wrapper). Detailed scope in `DOCUMIND_HANDOFF_CONTEXT.md` §7 Step 7. May be pulled earlier — right after the Phase 1 baseline — if browser testing is wanted sooner; it must not displace `run_eval.py` or the golden-set review.
 - **Done when:** fresh clone → `docker compose up` → working API in under 10 minutes following the README; CI green; results table filled with real numbers.
 
 ---
@@ -370,9 +371,11 @@ THROTTLE_ANON=10/min
 - [ ] Phase 4: JWT + throttling + Celery + OpenAPI + structlog
 - [ ] Phase 4: Locust results; CI eval gate; coverage ≥ 85%
 - [ ] Phase 4: README (diagram, results, setup) + resume bullets updated with real numbers
-- [ ] Stretch: Streamlit demo / AWS deployment / Kubernetes manifests
+- [ ] Phase 4: Streamlit demo UI (thin client over `/api/ask/` — see Handoff §7 Step 7; may be pulled forward after the Phase 1 baseline)
+- [ ] Stretch: AWS deployment / Kubernetes manifests
 
 **Session log** (append newest first; format `YYYY-MM-DD: what was done | next step | blockers`):
+- 2026-09-21: Planned the Streamlit demo UI into the roadmap (owner request) — thin browser client over `/api/ask/` + `/api/health/` (question box, mode selector, citations, latency); scheduled as Phase 4 work with an explicit option to pull it forward right after the Phase 1 baseline; full scope recorded in Handoff §7 Step 7 | next: owner reviews ≥40 golden-set questions, promote to `eval/golden_set.jsonl`, then `run_eval.py` and the vector baseline | blockers: none
 - 2026-09-21: Ran the live golden-set draft (`eval/build_golden_set.py` via Ollama Cloud `gpt-oss:20b`) — 100 questions written to `eval/golden_set_draft.jsonl` (90 answerable / 10 unanswerable, 70 dev / 30 heldout, model recorded per question); fixed three topic-area prefixes (`ref/class-based-views/`, `ref/settings`, `topics/migrations`) that matched no ingested chunks, plus an IndexError guard, mypy type fix, and a stale OS-level `LLM_PROVIDER=anthropic` discovered overriding `.env` | next: ≥40-question manual review, then promote to `eval/golden_set.jsonl` and build `run_eval.py` | blockers: manual review needs the owner
 - 2026-09-21: Committed and pushed to GitHub — `origin/main` = `35409c6`
 (Sessions 010–011: `2271eeb` Ollama Cloud provider + live RAG, `35409c6` full
