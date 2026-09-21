@@ -642,3 +642,38 @@ the first step of the next task.
   runnable in CI without model weights or API keys.
 - The next authorised work is the CPU-only torch fix, full corpus ingestion,
   golden-set drafting and review, `run_eval.py`, and the locked `vector` baseline.
+
+---
+
+## 2026-09-21 — Phase 1, Task: Pin CPU-only torch and re-verify the stack
+
+### Purpose
+
+Make the dependency lock match the service's actual hardware: CPU everywhere.
+This removes the silent CUDA resolution that made container workflows unusable
+and keeps CI caches and the production image free of a GPU stack the workload
+never exercises.
+
+### What changed
+
+`pyproject.toml` now declares `torch>=2.2,<3.0` explicitly with a
+`[tool.uv.sources]` mapping to the PyTorch CPU wheel index. `uv.lock` dropped
+`cuda-bindings`, `cuda-toolkit`, all `nvidia-*` packages, and `triton`
+(250 deletions), resolving `torch 2.14.0+cpu` on every platform instead.
+
+### Verification completed
+
+- Ruff, MyPy (50 files), and all 59 pytest tests passed under the new lock.
+- The interpreter reports `torch 2.14.0+cpu` with CUDA unavailable.
+- An isolated smoke ingestion (`torch-smoke` version, temp corpus) produced a
+  genuine embedding whose `vector_dims()` in PostgreSQL is 384; the smoke rows
+  were deleted child-first, restoring the production data exactly.
+- A raw cross-table `DELETE` does not trigger Django cascades — cleanup must run
+  child-first when done in SQL.
+
+### Constraints carried forward
+
+- Every future lock regeneration must be checked for `nvidia-`, `cuda-toolkit`,
+  `triton`, and `cuda-bindings` entries before it is committed.
+- Full corpus ingestion is the next authorised work; no eval numbers may be
+  recorded until it completes with all embeddings present.

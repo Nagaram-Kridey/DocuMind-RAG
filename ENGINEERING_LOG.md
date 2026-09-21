@@ -613,3 +613,93 @@ Commit Session 008, then fix the CPU-only torch resolution (§6 defect A in
 `DOCUMIND_HANDOFF_CONTEXT.md`), run the full corpus ingestion, draft and manually
 review the 100-question golden set, implement `eval/run_eval.py`, and record the
 `vector` baseline on `dev` then `heldout`.
+
+---
+
+# Session 009
+
+Phase: Phase 1 — Baseline (handoff Step 1: infrastructure first)
+Task: Pin CPU-only torch and re-verify the stack
+Status: Complete
+
+## Objective
+
+Remove the CUDA-capable torch resolution that stalled every Linux container
+workflow, re-sync and re-verify the full quality gate under the new lock, and
+prove the embedding stack still produces genuine 384-dimensional vectors with an
+isolated smoke ingestion — without touching the real `5.2` production rows.
+
+## Why this task exists
+
+Session 008's verification found that `uv.lock` resolved torch 2.14.0 from PyPI
+with Linux CUDA dependencies, so `docker compose run web` downloaded a multi-GB
+GPU stack and never reached the tests. That blocked container-side verification,
+inflated CI cold caches, and shipped a GPU dependency a CPU-only service never
+uses. Per the handoff procedure, this had to be fixed before the full corpus
+ingestion and every later eval run.
+
+## Concepts
+
+`uv` resolves packages per the declared indexes. Adding `torch` as an explicit
+dependency with a `[tool.uv.sources]` entry pointing at the PyTorch CPU wheel
+index replaces the PyPI CUDA resolution with `torch 2.14.0+cpu` on every
+platform, and drops the `cuda-bindings`, `cuda-toolkit`, `nvidia-*`, and `triton`
+packages from the lock entirely. The fix is fully reversible because both
+`pyproject.toml` and `uv.lock` are committed.
+
+## Files Created
+
+None. This task changes dependency resolution only.
+
+## File Explanations
+
+`pyproject.toml` gains the explicit `torch>=2.2,<3.0` dependency (with a comment
+explaining the CPU-only rationale), an explicit `pytorch-cpu` index entry, and a
+`[tool.uv.sources]` mapping. `uv.lock` shrinks by 250 lines: 45 insertions, 250
+deletions, all CUDA/nvidia/triton removals plus the `+cpu` torch wheels.
+
+## Architecture
+
+```text
+pyproject.toml (torch + pytorch-cpu index + sources)
+        |
+        v
+uv lock -> CUDA/nvidia/triton gone, torch 2.14.0+cpu everywhere
+        |
+        v
+uv sync -> host venv: 476 MB torch build replaced by the 118 MB CPU wheel
+        |
+        v
+ingest_docs (isolated temp corpus, distinct doc_version) -> 384-dim vector
+```
+
+## Tests
+
+- Ruff passed.
+- MyPy passed with 50 source files checked.
+- Pytest passed: 59 tests, unchanged.
+- Interpreter reports `torch 2.14.0+cpu`, `cuda_available=False`; `uv.lock`
+  contains zero `nvidia-`/`cuda-toolkit`/`triton`/`cuda-bindings` entries.
+- Embedding smoke: `ingest_docs --corpus-root <temp/RST> --docs-version
+  torch-smoke` created 1 document / 1 chunk with `embedded=1`; PostgreSQL
+  `vector_dims(embedding)` returned **384**; the smoke `Document`, its `Chunk`,
+  and its `IngestionJob` were then deleted child-first, restoring the production
+  data to exactly 3 documents / 14 chunks / 2 jobs (all embeddings present).
+
+## Lessons
+
+Two operational lessons. First, the 476 MB host `torch` directory number did not
+mean the host had CUDA: Windows PyPI wheels bundle broadly, while the lock's
+Linux markers selected CUDA extras that Windows never installed — which is why
+the defect only bit inside Linux containers. Second, raw cross-DB deletes do not
+follow Django's `on_delete=CASCADE`: deleting the smoke `Document` row directly
+raised a foreign-key violation, so cleanup had to run child-first
+(`Chunk` → `Document` → `IngestionJob`). If smoke cleanup ever grows beyond
+throwaway rows, do it through the ORM or a management command so cascade rules
+apply.
+
+## Next Step
+
+Proceed to handoff Step 2: the full corpus ingestion against the pinned Django
+5.2 checkout, verifying chunk counts, non-null embeddings, and a `done`
+`IngestionJob` before any eval work begins.

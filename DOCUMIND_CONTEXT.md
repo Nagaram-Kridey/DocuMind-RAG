@@ -359,6 +359,7 @@ THROTTLE_ANON=10/min
 - [x] Phase 1: embedder + ingestion command
 - [x] Phase 1: `vector` mode + `/api/ask/` (plain prompt)
 - [x] Phase 1: golden-set schema, validation, and hand-written metrics (+ tests)
+- [x] Phase 1: CPU-only torch pinned; stack re-verified (ruff/mypy/59 tests green, 384-dim embedding smoke confirmed)
 - [ ] Phase 1: golden set built, reviewed, split
 - [ ] Phase 1: `run_eval.py`; baseline saved
 - [ ] Phase 2: full-text search + RRF + `hybrid` mode; results saved
@@ -370,6 +371,7 @@ THROTTLE_ANON=10/min
 - [ ] Stretch: Streamlit demo / AWS deployment / Kubernetes manifests
 
 **Session log** (append newest first; format `YYYY-MM-DD: what was done | next step | blockers`):
+- 2026-09-21: Pinned CPU-only torch (`torch>=2.2,<3.0` via the PyTorch CPU index; lock dropped all CUDA/nvidia/triton entries), re-synced and re-verified (ruff/mypy/59 tests green, interpreter reports `2.14.0+cpu`), and proved the stack with an isolated smoke ingestion (384 dims via `vector_dims()`, then cleaned child-first back to 3 docs / 14 chunks / 2 jobs) | next: full corpus ingestion | blockers: none
 - 2026-09-21: Hardened `eval/golden_set.py` (typed parsing, dataset validation, summary), added hand-written `eval/metrics.py` (Recall@k, hit@k, MRR@k, source matching), 32 new tests (59 passed), fixed the mypy gate, added `.dockerignore`, documented host-vs-container quality-gate workflows, and created `DOCUMIND_HANDOFF_CONTEXT.md` with the full verification report and production/deployment gaps | next: fix CPU-only torch (handoff defect A), full corpus ingestion, golden-set drafting + review, `run_eval.py`, baseline results | blockers: `docker compose run web` re-downloads a multi-GB CUDA torch stack inside Linux, so the container test workflow stalls (handoff defects A–B); host workflow verified green
 - 2026-09-20: Added `vector` retrieval mode, provider-agnostic `LLMClient`, and `POST /api/ask/` with plain prompt, citations, timings, and QueryLog audit; real query returned 3 hits (top similarity 0.68) | next: Phase 1 golden set + metrics + baseline eval | blockers: none
 - 2026-09-20: Added cached bge-small-en-v1.5 embedder and an idempotent ingestion command (document-level skip, chunk-level embedding reuse); real run created 3 docs / 14 chunks with 384-dim vectors and a repeat run skipped unchanged files | next: Phase 1 `vector` mode + `/api/ask/` plain prompt | blockers: none

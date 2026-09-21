@@ -13,7 +13,8 @@
 >
 > **Last verified:** 2026-09-21 (Section 3 lists the evidence).
 > **Repository:** https://github.com/Nagaram-Kridey/DocuMind-RAG
-> **Verified commit:** `d95a88242085e177a1db30000a5963722a340e1e` (branch `main`)
+> **Verified commit:** `04532af` (branch `main`; Session 008 committed; Session 009
+> CPU-only torch fix verified in the working tree, pending commit)
 
 ---
 
@@ -236,6 +237,15 @@ record, separated from the evidence-oriented engineering log.
 - **Evidence:** a real query returned 3 hits with top similarity 0.6826 and a
   genuine heading path.
 
+### Session 009 — Phase 1: CPU-only torch pinned and stack re-verified (Session 009, committed separately)
+
+- `pyproject.toml` declares `torch>=2.2,<3.0` with a `[tool.uv.sources]` mapping to
+  the PyTorch CPU index; `uv.lock` dropped CUDA/nvidia/triton (−250/+45 lines).
+- Re-verified: ruff / mypy (50 files) / 59 tests green; interpreter reports
+  `2.14.0+cpu`, CUDA unavailable.
+- Embedding smoke under the new lock produced a real 384-dim vector
+  (`vector_dims()`), then cleaned child-first back to 3 docs / 14 chunks / 2 jobs.
+
 ### Session 008 — Phase 1: Golden-set schema, metrics, and verification (this session)
 
 **Status:** changes are in the working tree; `eval/__init__.py` and
@@ -276,7 +286,7 @@ committed together with the new files.
 | File | State | Notes |
 | --- | --- | --- |
 | `pyproject.toml` | ✅ committed | Python 3.11, Django 5.2, DRF 3.15, pgvector, redis, gunicorn, numpy, sentence-transformers, anthropic, openai. Ruff (E/F/I/UP, 100 cols), mypy strict with overrides for ML/LLM libs, pytest-django config. |
-| `uv.lock` | ✅ committed | Resolved lock, including CUDA-capable torch 2.14.0 from PyPI (see §6 defect A). |
+| `uv.lock` | ✅ committed (Session 009: CUDA entries removed, `torch 2.14.0+cpu` on all platforms) | See §6 defect A (now fixed). |
 | `.python-version` | ✅ | 3.11. |
 | `manage.py` | ✅ | Stock Django entrypoint. |
 | `Dockerfile` | ✅ | `python:3.11-slim`, `uv sync --frozen --no-dev`, gunicorn CMD (2 workers). See §6 for gaps. |
@@ -359,8 +369,9 @@ in `pyproject.toml`, so this is luck on Windows and pain on Linux/CI.
 2. The production image carries a GPU stack a CPU-only workload never uses.
 3. Fresh container workflows (`run`, fresh builds) stall for many minutes.
 
-**Recommended fix (verify before and after).**
-Declare CPU-only torch explicitly in `pyproject.toml`:
+**Recommended fix (verified 2026-09-21 — applied as Session 009).**
+The fix below is now the locked state, kept here as the record of what was done
+and why. Declared CPU-only torch explicitly in `pyproject.toml`:
 
 ```toml
 dependencies = [
@@ -378,11 +389,18 @@ explicit = true
 torch = { index = "pytorch-cpu" }
 ```
 
-Then `uv lock`, confirm the CUDA/nvidia entries disappear from `uv.lock`,
-re-sync and re-run all three gates plus a real `ingest_docs --limit 3` smoke.
-If the lock regeneration fails or the model behaves differently, revert
-(`pyproject.toml` and `uv.lock` are committed, so the change is fully reversible).
-**Do not silently accept GPU wheels on a CPU service.**
+Observed result of `uv lock`: CUDA/nvidia/triton entries dropped from `uv.lock`
+(`-250/+45` lines), `torch 2.14.0+cpu` resolved on all platforms, host venv
+re-synced to the 118 MB CPU wheel, and the interpreter reports `2.14.0+cpu`
+with CUDA unavailable. Re-verified: ruff clean, mypy clean (50 files), 59/59
+tests green. Embedding smoke (`ingest_docs --corpus-root <temp/RST>`
+`--docs-version torch-smoke`) produced 1 doc / 1 chunk with `embedded=1` and
+`vector_dims(embedding) = 384`; smoke rows deleted child-first
+(`Chunk` → `Document` → `IngestionJob`), restoring exactly 3 docs / 14 chunks /
+2 jobs. Lesson: raw SQL `DELETE` does not follow Django `on_delete=CASCADE`.
+**Still open:** re-running the container test workflow end-to-end (cheap now that
+the lock is CPU-only, but not yet re-attempted), then the dev-image/profile work
+in item 2 below.
 
 ### DEFECT B — `docker compose run web` re-syncs dependencies on every invocation (HIGH)
 
@@ -479,19 +497,12 @@ git add eval/__init__.py eval/golden_set.py eval/metrics.py \
 git commit -m "v0.1.0 | Session 008: golden-set schema, retrieval metrics, verification fixes"
 ```
 
-### Step 1 — Fix Defect A (CPU-only torch), then re-verify everything
+### Step 1 — CPU-only torch: DONE (Session 009, verified this turn)
 
-Follow §6 Defect A. This is first because every later step (full ingestion, eval
-runs, CI) downloads or uses torch. Gate before/after:
-
-- `Select-String -Path uv.lock -Pattern 'nvidia|cuda-toolkit|triton'` must return
-  nothing after the fix.
-- `uv run --env-file .env ruff check .`, `mypy .`, `pytest` (59 tests).
-- A real embedding smoke under the new lock: create a temp directory with one tiny
-  RST file, run `ingest_docs --corpus-root <temp> --docs-version torch-smoke`,
-  confirm the new chunk row has `embedding IS NOT NULL`, then delete the
-  `torch-smoke` `Document` rows and their `IngestionJob`. The distinct version
-  keeps temp rows identifiable so the real `5.2` data is never touched.
+`pyproject.toml` declares `torch>=2.2,<3.0` with the PyTorch CPU index;
+`uv.lock` has zero CUDA/nvidia/triton entries; gates re-verified green;
+embedding smoke confirmed 384 dims and was cleaned. **Start the remaining work at
+Step 2 (full corpus ingestion).**
 
 ### Step 2 — Full corpus ingestion
 
